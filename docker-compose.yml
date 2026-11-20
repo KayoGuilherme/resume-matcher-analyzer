@@ -14,6 +14,11 @@ services:
   api:
     build: .
     env_file: .env
+    environment:
+      # Wins over env_file: files go to the persistent volume, writable by the non-root user.
+      RESUME_STORAGE_DIR: /data/resumes
+    volumes:
+      - resume_files:/data/resumes
     depends_on:
       db:
         condition: service_healthy
@@ -22,3 +27,4 @@ services:
 
 volumes:
   pgdata:
+  resume_files:

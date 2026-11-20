@@ -6,6 +6,10 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
+# Libraries that print document content at DEBUG (pdfminer logs the tokens it parses). They are
+# never allowed below WARNING, whatever the application log level is.
+QUIET_LIBRARIES = ("pdfminer", "pdfplumber", "PIL")
+
 _STANDARD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {
     "message",
     "asctime",
@@ -42,3 +46,5 @@ def configure_logging(level: str) -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(numeric)
+    for name in QUIET_LIBRARIES:
+        logging.getLogger(name).setLevel(max(numeric, logging.WARNING))
