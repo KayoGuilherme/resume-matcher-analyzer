@@ -1,0 +1,61 @@
+name: PR rules
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  title:
+    name: title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            refactor
+            test
+            chore
+            ci
+            build
+            perf
+          subjectPattern: ^.+$
+          subjectPatternError: |
+            The pull request title needs a non-empty subject after the type.
+            Example: "feat: add resume upload endpoint".
+      - name: Check title length (max 72 characters)
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          length=${#PR_TITLE}
+          if [ "$length" -gt 72 ]; then
+            {
+              echo "::error title=PR title too long::The title has $length characters; the maximum is 72."
+              echo
+              echo "Format:        <type>: <short description>   (example: feat: add resume upload endpoint)"
+              echo "Allowed types: feat, fix, docs, refactor, test, chore, ci, build, perf"
+              echo "How to fix:    edit the pull request title on GitHub (the check runs again by itself)."
+            } >&2
+            exit 1
+          fi
+          echo "Title length OK ($length/72)."
+
+  commits:
+    name: commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.mjs
+          helpURL: ${{ github.server_url }}/${{ github.repository }}/blob/main/.claude/CLAUDE.md#commits-and-prs

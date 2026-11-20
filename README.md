@@ -41,6 +41,9 @@ then run `uv run alembic upgrade head`, `uv run alembic check` and
 `uv run pytest -m integration`. The coverage threshold lives in `pyproject.toml`
 (`[tool.coverage.report] fail_under`).
 
+The profile integration tests empty the `candidate_profile` table before and after each test,
+so run them only against a throwaway database, never one that holds your real profile.
+
 Run the API locally (needs a reachable Postgres and `DATABASE_URL` set):
 
 ```bash
@@ -56,6 +59,38 @@ uv run alembic upgrade head                                        # apply
 
 Never edit an applied migration; create a new one. Inside Docker, prefix with
 `docker compose exec api`.
+
+## Candidate profile API
+
+One profile (single user, no authentication). `PUT /profile` creates or replaces it, `GET /profile`
+returns it (404 if none was saved).
+
+```bash
+curl -X PUT localhost:8000/profile -H 'content-type: application/json' -d '{
+  "target_role": "Backend Developer",
+  "seniority": "mid",
+  "total_years_coding": 5,
+  "stacks": [{"name": "Springboot", "years": 3, "level": "working", "last_year_used": 2024}],
+  "languages": [{"name": "pt", "level": "native"}],
+  "notable_facts": ["Built a payments API"]
+}'
+curl localhost:8000/profile
+```
+
+Fields: `seniority` is `junior|mid|senior`; stack `level` is `learning|working|proficient|expert`;
+language `level` is `A1`..`C2` or `native`; years are numbers from 0 to 60 and a stack's years
+cannot exceed `total_years_coding`; `last_year_used` is optional (1970 up to the current year).
+Unknown fields are rejected.
+
+Stack and language names are normalized (case-insensitive, aliases such as `springboot` ->
+`spring boot`, `postgres` -> `postgresql`, `js` -> `javascript`, `pt` -> `portuguese`; see
+`src/app/core/normalization.py`). Each item in the response has the normalized `name` and the text
+you typed in `original_name`; duplicates after normalization are rejected. Because of
+`original_name`, a `GET` response cannot be sent back to `PUT` unchanged.
+
+Invalid input returns 422 with `{"error": {"code": ..., "message": ...}}`: `validation_error` for
+malformed values and `invalid_profile` for the rules between fields (stack years, duplicates).
+Messages name the field or list position (`stacks[1]`) and never repeat what you sent.
 
 ## Repository settings (manual)
 
