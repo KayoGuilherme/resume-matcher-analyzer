@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
@@ -9,10 +10,19 @@ from typing import NamedTuple
 
 from starlette.concurrency import run_in_threadpool
 
+from app.ai.embeddings.base import EmbeddingClient, EmbeddingError
+from app.ai.llm.base import (
+    LLMAuthError,
+    LLMClient,
+    LLMInvalidOutputError,
+    LLMTimeoutError,
+    LLMTransientError,
+)
 from app.ai.parsing import parse_document
 from app.ai.parsing.detect import detect_file_type
 from app.ai.parsing.models import UnreadableDocumentError
 from app.ai.parsing.quality import check_quality
+from app.ai.pipeline import process_resume_text
 from app.core.errors import DomainError
 from app.core.storage import FileStorage
 from app.resumes.repository import ResumeRepository
@@ -52,6 +62,51 @@ class NoExtractableTextError(DomainError):
 class ResumeNotFoundError(DomainError):
     status_code = 404
     code = "resume_not_found"
+
+
+class AlreadyProcessingError(DomainError):
+    status_code = 409
+    code = "already_processing"
+
+
+# Processing failures: stable code -> fixed message. Never built from exception text, which may
+# carry resume content or secrets.
+PROCESSING_MESSAGES = {
+    "llm_auth_failed": "The LLM provider rejected the credentials. Check LLM_API_KEY.",
+    "llm_timeout": (
+        "The LLM did not answer in time. Increase LLM_TIMEOUT_SECONDS or use a faster model."
+    ),
+    "llm_unavailable": (
+        "The LLM provider was unavailable or rate limiting after several attempts. Try again later."
+    ),
+    "llm_invalid_output": (
+        "The LLM's answer could not be validated against the resume schema. Try again or use a "
+        "more capable model."
+    ),
+    "embedding_failed": (
+        "Creating the embeddings failed. Check the EMBEDDING_* settings and that the embedding "
+        "provider is reachable."
+    ),
+    "processing_interrupted": (
+        "Processing was interrupted by an application restart. Process the resume again."
+    ),
+    "processing_failed": "Processing failed unexpectedly. Try again.",
+}
+
+
+def processing_error_code(error: Exception) -> str:
+    """The one place where AI-layer errors become resume error codes."""
+    if isinstance(error, LLMAuthError):
+        return "llm_auth_failed"
+    if isinstance(error, LLMTimeoutError):
+        return "llm_timeout"
+    if isinstance(error, LLMTransientError):
+        return "llm_unavailable"
+    if isinstance(error, LLMInvalidOutputError):
+        return "llm_invalid_output"
+    if isinstance(error, EmbeddingError):
+        return "embedding_failed"
+    return "processing_failed"
 
 
 class UploadResult(NamedTuple):
@@ -203,3 +258,59 @@ class ResumeService:
                 "stored resume file could not be removed", extra={"resume_id": str(resume_id)}
             )
         logger.info("resume deleted", extra={"resume_id": str(resume_id)})
+
+    async def start_processing(self, resume_id: uuid.UUID) -> ResumeDetail:
+        """Mark the resume `processing` (atomically) and return it; the work runs later."""
+        if not await self._repository.begin_processing(resume_id):
+            if await self._repository.get(resume_id) is None:
+                raise ResumeNotFoundError("Resume not found")
+            raise AlreadyProcessingError("This resume is already being processed")
+        resume = await self._repository.get(resume_id)
+        if resume is None:  # deleted between the two calls
+            raise ResumeNotFoundError("Resume not found")
+        logger.info("resume processing started", extra={"resume_id": str(resume_id)})
+        return resume
+
+    async def run_processing(
+        self, resume_id: uuid.UUID, llm: LLMClient, embedder: EmbeddingClient
+    ) -> None:
+        """Extract, chunk and embed a resume that is `processing`, then store the result.
+
+        Never raises for processing failures: they end as status `failed` with a safe error.
+        """
+        started = time.perf_counter()
+        try:
+            resume = await self._repository.get(resume_id)
+            if resume is None:
+                logger.warning(
+                    "resume vanished before processing", extra={"resume_id": str(resume_id)}
+                )
+                return
+            processed = await process_resume_text(resume.text, llm, embedder, datetime.now(UTC))
+            if not await self._repository.save_processed(resume_id, processed):
+                logger.warning(
+                    "resume deleted while processing", extra={"resume_id": str(resume_id)}
+                )
+                return
+        except Exception as error:
+            code = processing_error_code(error)
+            logger.warning(
+                "resume processing failed",
+                extra={
+                    "resume_id": str(resume_id),
+                    "error_code": code,
+                    "exception_type": type(error).__name__,
+                    "duration_ms": round((time.perf_counter() - started) * 1000),
+                },
+            )
+            await self._repository.set_failed(resume_id, code, PROCESSING_MESSAGES[code])
+            return
+        logger.info(
+            "resume processing finished",
+            extra={
+                "resume_id": str(resume_id),
+                "chunk_count": len(processed.chunks),
+                "warning_codes": [w.code for w in processed.extraction.warnings],
+                "duration_ms": round((time.perf_counter() - started) * 1000),
+            },
+        )

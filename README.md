@@ -2,7 +2,7 @@
 
 Backend (Python 3.12, FastAPI, PostgreSQL + pgvector) that compares a resume against a job
 position and reports what is missing to pass ATS/AI first-step screening.
-This repo currently contains the project skeleton only.
+Stored resumes are parsed, extracted by an LLM into structured data and embedded for search.
 
 ## Run with Docker
 
@@ -141,6 +141,146 @@ come from the document properties, which Word may not keep up to date.
 
 Starlette stores an upload before the size check runs; requests whose `Content-Length` is far over
 the limit are rejected early, but in production also set a request body limit in the reverse proxy.
+
+## AI providers
+
+The LLM (structured extraction) and the embeddings (vectors for search) are configured
+independently in `.env`; switching provider is a change to those variables only, never to code.
+Business code only knows the `LLMClient` and `EmbeddingClient` protocols; `ai/llm/` and
+`ai/embeddings/` are the only places that call a provider.
+
+| | `LLM_PROVIDER` | `EMBEDDING_PROVIDER` |
+|---|---|---|
+| Anthropic | `anthropic` | none: Anthropic has no embeddings model |
+| OpenAI | `openai` | `openai` |
+| Ollama, LM Studio, vLLM, any OpenAI-compatible server | `openai_compatible` (+ `LLM_BASE_URL`) | `openai_compatible` (+ `EMBEDDING_BASE_URL`) |
+| Model inside the API process | none | `local` (optional dependency group, see below) |
+
+`.env.example` has ready-to-copy blocks for Anthropic, OpenAI and a local Ollama. Without
+`LLM_PROVIDER` the API runs normally and only `POST /resumes/{id}/process` answers
+`503 ai_not_configured` (the message names the missing setting).
+
+**Privacy:** with a hosted provider (Anthropic, OpenAI) the text of your resume is sent to that
+company. A local server (Ollama, ...) keeps everything on your machine.
+
+Behavior shared by all providers (the adapters stay thin): the model's answer is always validated
+against a Pydantic schema, with one repair attempt before `llm_invalid_output`; the provider's
+native structured output (tool use / JSON schema) is used when it works and the call falls back to
+JSON-in-the-prompt when it does not (typical for small local models); `LLM_TEMPERATURE` (default
+`0`) is only sent while the model accepts it (set it empty to never send one); rate limits and
+server errors are retried 3 times with backoff; authentication errors and timeouts are not.
+
+### Run with a local model (Ollama)
+
+```bash
+ollama pull bge-m3            # multilingual embeddings (Portuguese + English), 1024 dimensions
+ollama pull <a-chat-model>    # any model that follows instructions well; bigger is better
+OLLAMA_HOST=0.0.0.0 ollama serve
+```
+
+Then use the Ollama block of `.env.example`: `LLM_PROVIDER=openai_compatible`,
+`LLM_BASE_URL=http://host.docker.internal:11434/v1`, `LLM_MODEL=<model name>` and the same base URL
+for `EMBEDDING_*`.
+
+How the container reaches a server on your machine: inside the container `localhost` is the
+container itself, so use `host.docker.internal`. Docker Desktop defines that name; on Linux the
+`docker-compose.yml` adds it (`extra_hosts: host.docker.internal:host-gateway`). The server must
+listen on an address the container can reach: Ollama binds to `127.0.0.1` by default, which the
+Docker bridge cannot reach, hence `OLLAMA_HOST=0.0.0.0` (mind your firewall: anyone on your network
+can then use it). LM Studio: enable "Serve on Local Network"; vLLM: `--host 0.0.0.0`. Running the
+API on the host instead of Docker, use `http://localhost:11434/v1`.
+
+Small local models may return weaker structured output. That never becomes bad data: invalid
+answers are repaired once, bullets that are not in the resume are dropped (see `warnings` in the
+extraction), and a model that cannot produce valid output ends as `llm_invalid_output`.
+
+### Local embeddings without a server (optional)
+
+`EMBEDDING_PROVIDER=local` runs a sentence-transformers model inside the API process (for example
+`EMBEDDING_MODEL=BAAI/bge-m3`, `EMBEDDING_DIMENSION=1024`). It needs a large optional dependency
+group (torch) that is not in the default install or the default image:
+
+```bash
+uv sync --extra local-embeddings
+docker build --build-arg EXTRAS="--extra local-embeddings" -t ats-api .
+```
+
+On Linux `torch` resolves to a CUDA build (several GB) unless you point uv at the CPU index. The
+`docker-compose.yml` builds the default image; add the build argument under `api.build.args` to
+use the opt-in one.
+
+### Choosing the embedding model
+
+| Option | Dim. | Notes |
+|---|---|---|
+| `bge-m3` via Ollama (**default**) | 1024 | best free multilingual quality, no query/passage prefixes, local, small image |
+| `bge-m3` / `multilingual-e5-base` with `local` | 1024 / 768 | no server to run, but heavy dependency group |
+| `multilingual-e5-small` with `local` | 384 | lowest CPU/RAM; E5 models expect `query:` / `passage:` prefixes, which this project does not add |
+| OpenAI `text-embedding-3-small` | 1536 (cut to `EMBEDDING_DIMENSION` with `dimensions`) | easy hosted option, text leaves your machine |
+
+`EMBEDDING_DIMENSION` is the size of the database column (1 to 2000, the limit of pgvector's HNSW
+index). It is applied by migration `0004` when you run `alembic upgrade head`, so set it before the
+first migration. At startup the API refuses to start if it differs from the column, naming both
+sizes.
+
+### Changing the embedding model
+
+Vectors of different models are not comparable, even with the same dimension. Each chunk stores the
+model that made it, so you can see what is stale:
+
+```sql
+SELECT embedding_model, count(*) FROM resume_chunk GROUP BY 1;
+```
+
+- **Same dimension** (for example `bge-m3` to `multilingual-e5-base` with a 1024-wide setting): change
+  `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL`, restart, then `POST /resumes/{id}/process` for every
+  resume (this re-runs the extraction too).
+- **Different dimension**: write a new migration (never edit `0004`) that drops the index
+  `ix_resume_chunk_embedding`, deletes the rows of `resume_chunk` (they are derived data), runs
+  `ALTER TABLE resume_chunk ALTER COLUMN embedding TYPE vector(<N>)`, and recreates the index with
+  `CREATE INDEX ix_resume_chunk_embedding ON resume_chunk USING hnsw (embedding vector_cosine_ops)`.
+  Set `EMBEDDING_DIMENSION=<N>`, run `alembic upgrade head`, restart, and process the resumes again.
+
+## Resume processing API
+
+Turn a stored resume into structured data and vectors (needs a configured LLM and embeddings).
+
+```bash
+curl -X POST localhost:8000/resumes/<id>/process    # 202, status "processing"; runs in the background
+curl localhost:8000/resumes/<id>                    # poll: status, error, extraction
+```
+
+`status` is `uploaded` (stored, not processed), `processing`, `ready` or `failed`. A `ready` resume
+has an `extraction`: the `resume` (summary, skills lines, experiences with `YYYY-MM` start/end,
+bullets, education, languages, certifications, projects; no contact details), the
+`total_experience_months` / `total_experience_years` (computed by the code from the dates, merging
+overlapping jobs, never by the LLM), `warnings` (`dropped_unverified_items`,
+`experiences_without_valid_dates`) and how it was made (`prompt_name`, `prompt_version`,
+`llm_provider`, `llm_model`, `extracted_at`). Every bullet and skills line is the resume's own
+wording, checked against the resume text; anything else is dropped. Each bullet and skills line
+also becomes a vector chunk (`resume_chunk`, HNSW cosine index).
+
+Processing again is allowed from any status except `processing`. A failed run keeps the previous
+extraction and chunks. The work runs inside the API process: if the API restarts meanwhile, the
+resume becomes `failed` with `processing_interrupted` at the next start (one API process is
+assumed).
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `resume_not_found` | unknown id |
+| 409 | `already_processing` | the resume is `processing` |
+| 503 | `ai_not_configured` | no usable LLM or embeddings (status unchanged) |
+
+A `failed` resume has `error.code`: `llm_auth_failed`, `llm_timeout`, `llm_unavailable` (rate limit
+or server errors after retries), `llm_invalid_output`, `embedding_failed` (including a dimension
+mismatch), `processing_interrupted` or `processing_failed`. Messages never contain resume text.
+
+Tests marked `real_provider` call the provider configured in your environment; they are excluded
+from the default run and from CI, and skipped when nothing is configured:
+
+```bash
+uv run --env-file .env pytest -m real_provider -rs
+```
 
 ## Repository settings (manual)
 

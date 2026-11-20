@@ -67,8 +67,12 @@ async def test_clean_pdf_is_created_with_the_full_resume(make_client: Callable[[
         "metadata",
         "issues",
         "created_at",
+        "status",
+        "error",
+        "extraction",
         "text",
     }
+    assert (body["status"], body["error"], body["extraction"]) == ("uploaded", None, None)
     assert list(storage.files.values()) == [data]
 
 

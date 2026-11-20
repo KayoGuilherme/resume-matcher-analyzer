@@ -1,15 +1,18 @@
 """HTTP layer for resumes."""
 
 import uuid
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Request, Response, UploadFile
 from fastapi.routing import APIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.embeddings import EmbeddingClient, get_embedding_client
+from app.ai.llm import LLMClient, get_llm_client
 from app.core.config import Settings, get_settings
-from app.core.db import get_session
+from app.core.db import get_session, get_sessionmaker
 from app.core.storage import FileStorage, get_file_storage
 from app.resumes.repository import ResumeRepository
 from app.resumes.schemas import ResumeDetail, ResumeSummary
@@ -95,3 +98,49 @@ async def get_resume(resume_id: uuid.UUID, service: ServiceDep) -> ResumeDetail:
 @router.delete("/resumes/{resume_id}", status_code=204)
 async def delete_resume(resume_id: uuid.UUID, service: ServiceDep) -> None:
     await service.delete(resume_id)
+
+
+ServiceFactory = Callable[[], AbstractAsyncContextManager[ResumeService]]
+
+
+def get_background_service_factory(
+    settings: Annotated[Settings, Depends(get_settings)],
+    storage: Annotated[FileStorage, Depends(get_file_storage)],
+) -> ServiceFactory:
+    """Background work runs after the response, when the request's session is closed, so it
+    opens its own."""
+
+    @asynccontextmanager
+    async def factory() -> AsyncIterator[ResumeService]:
+        async with get_sessionmaker(settings)() as session:
+            yield ResumeService(
+                ResumeRepository(session), storage, settings.resume_max_upload_bytes
+            )
+
+    return factory
+
+
+async def _process_in_background(
+    factory: ServiceFactory, resume_id: uuid.UUID, llm: LLMClient, embedder: EmbeddingClient
+) -> None:
+    async with factory() as service:
+        await service.run_processing(resume_id, llm, embedder)
+
+
+@router.post("/resumes/{resume_id}/process", response_model=ResumeDetail, status_code=202)
+async def process_resume(
+    resume_id: uuid.UUID,
+    background: BackgroundTasks,
+    service: ServiceDep,
+    factory: Annotated[ServiceFactory, Depends(get_background_service_factory)],
+    llm: Annotated[LLMClient, Depends(get_llm_client)],
+    embedder: Annotated[EmbeddingClient, Depends(get_embedding_client)],
+) -> ResumeDetail:
+    """Start extraction, chunking and embedding in the background (202, status `processing`).
+
+    The AI clients are dependencies, so a missing configuration answers 503 before anything
+    changes. Poll `GET /resumes/{id}` for `ready` or `failed`.
+    """
+    resume = await service.start_processing(resume_id)
+    background.add_task(_process_in_background, factory, resume_id, llm, embedder)
+    return resume

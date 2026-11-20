@@ -132,3 +132,65 @@ def test_downgrade_drops_the_resume_table(monkeypatch: pytest.MonkeyPatch) -> No
     module.downgrade()
 
     assert dropped == ["resume"]
+
+
+def test_fourth_migration_follows_the_third() -> None:
+    module = _load_migration("0004")
+
+    assert module.revision == "0004"
+    assert module.down_revision == "0003"
+
+
+def test_upgrade_adds_status_columns_and_the_chunk_table(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0004")
+    added: list[str] = []
+    created: list[tuple[object, ...]] = []
+    sql: list[str] = []
+    monkeypatch.setattr(module.op, "add_column", lambda _table, column: added.append(column.name))
+    monkeypatch.setattr(module.op, "create_check_constraint", lambda *_a, **_k: None)
+    monkeypatch.setattr(module.op, "create_table", lambda *items: created.append(items))
+    monkeypatch.setattr(module.op, "create_index", lambda *_a, **_k: None)
+    monkeypatch.setattr(module.op, "execute", sql.append)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/x")
+    monkeypatch.setenv("EMBEDDING_DIMENSION", "768")
+
+    module.upgrade()
+
+    assert added == ["status", "error_code", "error_message", "extraction"]
+    (items,) = created
+    assert items[0] == "resume_chunk"
+    columns = {item.name: item for item in items[1:] if isinstance(item, sa.Column)}
+    assert set(columns) == {
+        "id",
+        "resume_id",
+        "section",
+        "experience_id",
+        "position",
+        "text",
+        "embedding",
+        "embedding_model",
+        "created_at",
+    }
+    assert columns["embedding"].type.dim == 768  # type: ignore[attr-defined]
+    assert columns["experience_id"].nullable
+    assert len(sql) == 1
+    assert "USING hnsw (embedding vector_cosine_ops)" in sql[0]
+
+
+def test_downgrade_removes_the_chunk_table_and_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0004")
+    calls: list[str] = []
+    monkeypatch.setattr(module.op, "drop_table", lambda name: calls.append(f"table:{name}"))
+    monkeypatch.setattr(module.op, "drop_constraint", lambda *_a, **_k: calls.append("constraint"))
+    monkeypatch.setattr(module.op, "drop_column", lambda _t, name: calls.append(f"column:{name}"))
+
+    module.downgrade()
+
+    assert calls[0] == "table:resume_chunk"
+    assert set(calls[1:]) == {
+        "constraint",
+        "column:status",
+        "column:error_code",
+        "column:error_message",
+        "column:extraction",
+    }

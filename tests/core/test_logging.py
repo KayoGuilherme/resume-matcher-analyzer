@@ -101,3 +101,9 @@ def test_parsing_a_pdf_at_debug_level_logs_no_resume_text(
     output = capsys.readouterr().out
     assert "Alex Example" not in output
     assert "payments platform" not in output
+
+
+def test_ai_provider_libraries_are_quiet_libraries() -> None:
+    assert {"openai", "anthropic", "httpx", "httpcore", "sentence_transformers"} <= set(
+        QUIET_LIBRARIES
+    )

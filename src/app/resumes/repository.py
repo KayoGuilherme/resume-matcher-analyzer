@@ -1,16 +1,20 @@
 """Database access for resumes. No business rules."""
 
+import re
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
+from app.ai.extraction.models import ExtractionResult
 from app.ai.parsing.models import ParsingIssue
-from app.resumes.models import Resume
-from app.resumes.schemas import ResumeDetail, ResumeMetadata, ResumeSummary
+from app.ai.pipeline import ProcessedResume
+from app.resumes.models import Resume, ResumeChunk
+from app.resumes.schemas import ResumeDetail, ResumeError, ResumeMetadata, ResumeSummary
 
 
 def _values(resume: ResumeDetail) -> dict[str, Any]:
@@ -25,6 +29,10 @@ def _values(resume: ResumeDetail) -> dict[str, Any]:
         "parsing_metadata": resume.metadata.model_dump(),
         "issues": [issue.model_dump() for issue in resume.issues],
         "created_at": resume.created_at,
+        "status": resume.status,
+        "error_code": resume.error.code if resume.error else None,
+        "error_message": resume.error.message if resume.error else None,
+        "extraction": resume.extraction.model_dump(mode="json") if resume.extraction else None,
     }
 
 
@@ -39,11 +47,20 @@ def _summary_fields(row: Resume) -> dict[str, Any]:
         "metadata": ResumeMetadata.model_validate(row.parsing_metadata),
         "issues": [ParsingIssue.model_validate(issue) for issue in row.issues],
         "created_at": row.created_at,
+        "status": row.status,
+        "error": (
+            ResumeError(code=row.error_code, message=row.error_message or "")
+            if row.error_code
+            else None
+        ),
     }
 
 
 def _to_detail(row: Resume) -> ResumeDetail:
-    return ResumeDetail(**_summary_fields(row), text=row.text)
+    extraction = (
+        ExtractionResult.model_validate(row.extraction) if row.extraction is not None else None
+    )
+    return ResumeDetail(**_summary_fields(row), text=row.text, extraction=extraction)
 
 
 class ResumeRepository:
@@ -73,7 +90,11 @@ class ResumeRepository:
 
     async def list_all(self) -> list[ResumeSummary]:
         """All resumes, newest first, without loading their text."""
-        statement = select(Resume).options(defer(Resume.text)).order_by(Resume.created_at.desc())
+        statement = (
+            select(Resume)
+            .options(defer(Resume.text), defer(Resume.extraction))
+            .order_by(Resume.created_at.desc())
+        )
         rows = (await self._session.execute(statement)).scalars().all()
         return [ResumeSummary(**_summary_fields(row)) for row in rows]
 
@@ -85,3 +106,98 @@ class ResumeRepository:
         row = (await self._session.execute(statement)).one_or_none()
         await self._session.commit()
         return None if row is None else (row.sha256, row.file_type)
+
+    async def begin_processing(self, resume_id: uuid.UUID) -> bool:
+        """Atomically set `processing` unless it already is (and clear the previous error).
+
+        One statement, so two simultaneous requests cannot both win. Returns whether this call
+        started the processing; False also when the resume does not exist.
+        """
+        statement = (
+            update(Resume)
+            .where(Resume.id == resume_id, Resume.status != "processing")
+            .values(status="processing", error_code=None, error_message=None)
+            .returning(Resume.id)
+        )
+        started = (await self._session.execute(statement)).scalar_one_or_none() is not None
+        await self._session.commit()
+        return started
+
+    async def save_processed(self, resume_id: uuid.UUID, processed: ProcessedResume) -> bool:
+        """Replace the extraction and all chunks and set `ready`, in one transaction.
+
+        Returns False (nothing written) when the resume was deleted meanwhile. On any error the
+        transaction is rolled back, so the previous extraction and chunks stay untouched.
+        """
+        try:
+            statement = (
+                update(Resume)
+                .where(Resume.id == resume_id)
+                .values(
+                    status="ready",
+                    error_code=None,
+                    error_message=None,
+                    extraction=processed.extraction.model_dump(mode="json"),
+                )
+                .returning(Resume.id)
+            )
+            if (await self._session.execute(statement)).scalar_one_or_none() is None:
+                await self._session.rollback()
+                return False
+            await self._session.execute(
+                delete(ResumeChunk).where(ResumeChunk.resume_id == resume_id)
+            )
+            created_at = datetime.now(UTC)
+            self._session.add_all(
+                ResumeChunk(
+                    id=uuid.uuid4(),
+                    resume_id=resume_id,
+                    section=item.chunk.section,
+                    experience_id=item.chunk.experience_id,
+                    position=item.chunk.position,
+                    text=item.chunk.text,
+                    embedding=item.embedding,
+                    embedding_model=processed.embedding_model,
+                    created_at=created_at,
+                )
+                for item in processed.chunks
+            )
+            await self._session.commit()
+        except BaseException:
+            await self._session.rollback()
+            raise
+        return True
+
+    async def set_failed(self, resume_id: uuid.UUID, code: str, message: str) -> None:
+        """Mark a failed run. The previous extraction and chunks are left as they are."""
+        await self._session.execute(
+            update(Resume)
+            .where(Resume.id == resume_id)
+            .values(status="failed", error_code=code, error_message=message)
+        )
+        await self._session.commit()
+
+    async def mark_interrupted(self, message: str) -> int:
+        """Fail every resume still `processing` (its background work died with the process)."""
+        result = await self._session.execute(
+            update(Resume)
+            .where(Resume.status == "processing")
+            .values(status="failed", error_code="processing_interrupted", error_message=message)
+            .returning(Resume.id)
+        )
+        count = len(result.all())
+        await self._session.commit()
+        return count
+
+    async def chunk_embedding_dimension(self) -> int | None:
+        """The size of the `resume_chunk.embedding` column, or None if the table does not exist."""
+        result = await self._session.execute(
+            text(
+                "SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
+                "WHERE attrelid = to_regclass('resume_chunk') AND attname = 'embedding' "
+                "AND NOT attisdropped"
+            )
+        )
+        declared = result.scalar_one_or_none()
+        match = re.search(r"\((\d+)\)", declared or "")
+        return int(match.group(1)) if match else None

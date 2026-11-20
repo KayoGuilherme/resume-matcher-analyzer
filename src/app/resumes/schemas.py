@@ -2,10 +2,14 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
+from app.ai.extraction.models import ExtractionResult
 from app.ai.parsing.models import FileType, ParsingIssue
+
+ResumeStatus = Literal["uploaded", "processing", "ready", "failed"]
 
 
 class ResumeMetadata(BaseModel):
@@ -16,6 +20,13 @@ class ResumeMetadata(BaseModel):
     word_count: int
     table_count: int
     image_count: int
+
+
+class ResumeError(BaseModel):
+    """Why the last processing run failed. Never contains resume content."""
+
+    code: str
+    message: str
 
 
 class ResumeSummary(BaseModel):
@@ -30,9 +41,12 @@ class ResumeSummary(BaseModel):
     metadata: ResumeMetadata
     issues: list[ParsingIssue]
     created_at: datetime
+    status: ResumeStatus = "uploaded"
+    error: ResumeError | None = None
 
 
 class ResumeDetail(ResumeSummary):
-    """A resume with its extracted text."""
+    """A resume with its extracted text and the extraction of its last successful processing."""
 
     text: str
+    extraction: ExtractionResult | None = None

@@ -19,6 +19,10 @@ services:
       RESUME_STORAGE_DIR: /data/resumes
     volumes:
       - resume_files:/data/resumes
+    extra_hosts:
+      # Docker Desktop defines this name; on Linux it must be added so LLM_BASE_URL /
+      # EMBEDDING_BASE_URL can point to a model server (Ollama, ...) running on the host.
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

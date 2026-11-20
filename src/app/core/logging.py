@@ -6,9 +6,21 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
-# Libraries that print document content at DEBUG (pdfminer logs the tokens it parses). They are
-# never allowed below WARNING, whatever the application log level is.
-QUIET_LIBRARIES = ("pdfminer", "pdfplumber", "PIL")
+# Libraries that print document or prompt content at DEBUG (pdfminer logs the tokens it parses, the
+# provider SDKs log request details, httpx logs URLs). They are never allowed below WARNING,
+# whatever the application log level is.
+QUIET_LIBRARIES = (
+    "pdfminer",
+    "pdfplumber",
+    "PIL",
+    "openai",
+    "anthropic",
+    "httpx",
+    "httpx2",
+    "httpcore",
+    "httpcore2",
+    "sentence_transformers",
+)
 
 _STANDARD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {
     "message",

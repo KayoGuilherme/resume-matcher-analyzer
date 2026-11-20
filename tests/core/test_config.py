@@ -75,3 +75,147 @@ def test_env_example_lists_the_resume_settings() -> None:
 
     assert "RESUME_MAX_UPLOAD_BYTES=" in example
     assert "RESUME_STORAGE_DIR=" in example
+
+
+_AI_VARIABLES = [
+    "LLM_PROVIDER",
+    "LLM_MODEL",
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_TIMEOUT_SECONDS",
+    "LLM_TEMPERATURE",
+    "EMBEDDING_PROVIDER",
+    "EMBEDDING_MODEL",
+    "EMBEDDING_DIMENSION",
+    "EMBEDDING_API_KEY",
+    "EMBEDDING_BASE_URL",
+]
+
+
+@pytest.fixture
+def clean_ai_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/x")
+    for name in _AI_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    return monkeypatch
+
+
+def test_ai_settings_defaults(clean_ai_env: pytest.MonkeyPatch) -> None:
+    settings = Settings()
+
+    assert settings.llm_provider is None
+    assert settings.llm_model is None
+    assert settings.llm_api_key is None
+    assert settings.llm_base_url is None
+    assert settings.llm_timeout_seconds == 120
+    assert settings.llm_temperature == 0
+    assert settings.embedding_provider == "openai_compatible"
+    assert settings.embedding_model == "bge-m3"
+    assert settings.embedding_dimension == 1024
+    assert settings.embedding_api_key is None
+    assert settings.embedding_base_url is None
+
+
+def test_ai_settings_can_be_overridden(clean_ai_env: pytest.MonkeyPatch) -> None:
+    clean_ai_env.setenv("LLM_PROVIDER", "openai_compatible")
+    clean_ai_env.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
+    clean_ai_env.setenv("LLM_MODEL", "llama3.1")
+    clean_ai_env.setenv("LLM_TIMEOUT_SECONDS", "30.5")
+    clean_ai_env.setenv("LLM_TEMPERATURE", "0.3")
+    clean_ai_env.setenv("EMBEDDING_PROVIDER", "openai")
+    clean_ai_env.setenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    clean_ai_env.setenv("EMBEDDING_DIMENSION", "1536")
+    clean_ai_env.setenv("EMBEDDING_API_KEY", "placeholder")
+
+    settings = Settings()
+
+    assert settings.llm_provider == "openai_compatible"
+    assert settings.llm_model == "llama3.1"
+    assert settings.llm_timeout_seconds == 30.5
+    assert settings.llm_temperature == 0.3
+    assert settings.embedding_provider == "openai"
+    assert settings.embedding_dimension == 1536
+    assert settings.embedding_api_key is not None
+    assert settings.embedding_api_key.get_secret_value() == "placeholder"
+
+
+@pytest.mark.parametrize("name", ["LLM_PROVIDER", "EMBEDDING_PROVIDER"])
+def test_unknown_provider_fails_naming_the_setting(
+    clean_ai_env: pytest.MonkeyPatch, name: str
+) -> None:
+    clean_ai_env.setenv(name, "gemini")
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    assert name.lower() in str(exc_info.value).lower()
+
+
+@pytest.mark.parametrize("value", ["0", "abc"])
+def test_invalid_llm_timeout_fails_naming_the_setting(
+    clean_ai_env: pytest.MonkeyPatch, value: str
+) -> None:
+    clean_ai_env.setenv("LLM_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    assert "llm_timeout_seconds" in str(exc_info.value).lower()
+
+
+@pytest.mark.parametrize("value", ["0", "2001", "abc"])
+def test_invalid_embedding_dimension_fails_naming_the_setting(
+    clean_ai_env: pytest.MonkeyPatch, value: str
+) -> None:
+    clean_ai_env.setenv("EMBEDDING_DIMENSION", value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    assert "embedding_dimension" in str(exc_info.value).lower()
+
+
+def test_empty_temperature_means_none(clean_ai_env: pytest.MonkeyPatch) -> None:
+    clean_ai_env.setenv("LLM_TEMPERATURE", "")
+
+    assert Settings().llm_temperature is None
+
+
+def test_empty_optional_values_mean_unset(clean_ai_env: pytest.MonkeyPatch) -> None:
+    for name in ("LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY", "LLM_BASE_URL", "EMBEDDING_API_KEY"):
+        clean_ai_env.setenv(name, "")
+
+    settings = Settings()
+
+    assert settings.llm_provider is None
+    assert settings.llm_api_key is None
+    assert settings.embedding_api_key is None
+
+
+def test_settings_are_valid_with_only_the_database_url(clean_ai_env: pytest.MonkeyPatch) -> None:
+    assert Settings().database_url.startswith("postgresql")
+
+
+def test_validation_error_does_not_echo_the_api_key(clean_ai_env: pytest.MonkeyPatch) -> None:
+    clean_ai_env.setenv("LLM_API_KEY", "sk-super-secret-value")
+    clean_ai_env.setenv("LLM_TIMEOUT_SECONDS", "abc")
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    assert "sk-super-secret-value" not in str(exc_info.value)
+
+
+def test_api_key_is_not_shown_in_repr(clean_ai_env: pytest.MonkeyPatch) -> None:
+    clean_ai_env.setenv("LLM_API_KEY", "sk-super-secret-value")
+
+    assert "sk-super-secret-value" not in repr(Settings())
+
+
+def test_env_example_lists_every_ai_setting_without_real_secrets() -> None:
+    example = (Path(__file__).resolve().parents[2] / ".env.example").read_text()
+
+    for name in _AI_VARIABLES:
+        assert f"\n{name}=" in example
+    assert "sk-" not in example
+    assert "Anthropic" in example and "OpenAI" in example and "Ollama" in example
