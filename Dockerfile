@@ -15,6 +15,8 @@ RUN uv sync --frozen --no-dev --no-editable
 FROM python:3.12-slim AS final
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --no-create-home app
+# Uploaded resumes live here: a named volume mounted on it inherits this ownership.
+RUN mkdir -p /data/resumes && chown app:app /data/resumes
 WORKDIR /app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app alembic.ini ./

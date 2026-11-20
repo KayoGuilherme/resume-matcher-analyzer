@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.normalization import normalize_language_name, normalize_stack_name
+from app.core.normalization import fold_text, normalize_language_name, normalize_stack_name
 
 
 @pytest.mark.parametrize("raw", ["  Spring   BOOT ", "SPRING BOOT", "spring boot"])
@@ -41,3 +41,20 @@ def test_normalization_is_idempotent(raw: str) -> None:
     once = normalize_stack_name(raw)
 
     assert normalize_stack_name(once) == once
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("  Experiência   Profissional ", "experiencia profissional"),
+        ("FORMAÇÃO ACADÊMICA", "formacao academica"),
+        ("Skills", "skills"),
+        ("", ""),
+    ],
+)
+def test_fold_text_ignores_case_accents_and_spacing(raw: str, expected: str) -> None:
+    assert fold_text(raw) == expected
+
+
+def test_name_normalization_keeps_accents_in_unknown_names() -> None:
+    assert normalize_language_name("Français") == "français"

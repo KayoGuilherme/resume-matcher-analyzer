@@ -35,6 +35,11 @@ def _strip_accents(text: str) -> str:
     return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
+def fold_text(text: str) -> str:
+    """Compare-friendly form of free text: trimmed, single spaces, lowercase, no accents."""
+    return _strip_accents(_clean(text))
+
+
 def _normalize(text: str, aliases: Mapping[str, str]) -> str:
     cleaned = _clean(text)
     return aliases.get(_strip_accents(cleaned), cleaned)
