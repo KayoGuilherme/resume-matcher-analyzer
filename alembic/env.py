@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.core.config import get_settings
 from app.core.db import Base
+from app.jobs import models as job_models  # noqa: F401
 from app.profile import models as profile_models  # noqa: F401
 from app.resumes import models as resume_models  # noqa: F401
 

@@ -33,13 +33,24 @@ def test_detail_has_every_field_of_the_spec() -> None:
         "metadata",
         "issues",
         "created_at",
+        "status",
+        "error",
+        "extraction",
         "text",
     }
 
 
 def test_summary_has_no_text() -> None:
     assert "text" not in ResumeSummary.model_fields
-    assert set(_detail().model_dump(exclude={"text"})) == set(ResumeSummary.model_fields)
+    assert set(_detail().model_dump(exclude={"text", "extraction"})) == set(
+        ResumeSummary.model_fields
+    )
+
+
+def test_a_new_resume_is_uploaded_without_error_or_extraction() -> None:
+    detail = _detail()
+
+    assert (detail.status, detail.error, detail.extraction) == ("uploaded", None, None)
 
 
 def test_metadata_has_the_documented_fields() -> None:

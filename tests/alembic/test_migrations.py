@@ -132,3 +132,111 @@ def test_downgrade_drops_the_resume_table(monkeypatch: pytest.MonkeyPatch) -> No
     module.downgrade()
 
     assert dropped == ["resume"]
+
+
+def test_fourth_migration_follows_the_third() -> None:
+    module = _load_migration("0004")
+
+    assert module.revision == "0004"
+    assert module.down_revision == "0003"
+
+
+def test_upgrade_adds_status_columns_and_the_chunk_table(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0004")
+    added: list[str] = []
+    created: list[tuple[object, ...]] = []
+    sql: list[str] = []
+    monkeypatch.setattr(module.op, "add_column", lambda _table, column: added.append(column.name))
+    monkeypatch.setattr(module.op, "create_check_constraint", lambda *_a, **_k: None)
+    monkeypatch.setattr(module.op, "create_table", lambda *items: created.append(items))
+    monkeypatch.setattr(module.op, "create_index", lambda *_a, **_k: None)
+    monkeypatch.setattr(module.op, "execute", sql.append)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/x")
+    monkeypatch.setenv("EMBEDDING_DIMENSION", "768")
+
+    module.upgrade()
+
+    assert added == ["status", "error_code", "error_message", "extraction"]
+    (items,) = created
+    assert items[0] == "resume_chunk"
+    columns = {item.name: item for item in items[1:] if isinstance(item, sa.Column)}
+    assert set(columns) == {
+        "id",
+        "resume_id",
+        "section",
+        "experience_id",
+        "position",
+        "text",
+        "embedding",
+        "embedding_model",
+        "created_at",
+    }
+    assert columns["embedding"].type.dim == 768  # type: ignore[attr-defined]
+    assert columns["experience_id"].nullable
+    assert len(sql) == 1
+    assert "USING hnsw (embedding vector_cosine_ops)" in sql[0]
+
+
+def test_downgrade_removes_the_chunk_table_and_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0004")
+    calls: list[str] = []
+    monkeypatch.setattr(module.op, "drop_table", lambda name: calls.append(f"table:{name}"))
+    monkeypatch.setattr(module.op, "drop_constraint", lambda *_a, **_k: calls.append("constraint"))
+    monkeypatch.setattr(module.op, "drop_column", lambda _t, name: calls.append(f"column:{name}"))
+
+    module.downgrade()
+
+    assert calls[0] == "table:resume_chunk"
+    assert set(calls[1:]) == {
+        "constraint",
+        "column:status",
+        "column:error_code",
+        "column:error_message",
+        "column:extraction",
+    }
+
+
+def test_fifth_migration_follows_the_fourth() -> None:
+    module = _load_migration("0005")
+
+    assert module.revision == "0005"
+    assert module.down_revision == "0004"
+
+
+def test_upgrade_creates_the_job_and_requirements_tables(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0005")
+    created: dict[str, tuple[object, ...]] = {}
+    sql: list[str] = []
+    monkeypatch.setattr(
+        module.op, "create_table", lambda name, *items: created.update({name: items})
+    )
+    monkeypatch.setattr(module.op, "create_index", lambda *_a, **_k: None)
+    monkeypatch.setattr(module.op, "execute", sql.append)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/x")
+    monkeypatch.setenv("EMBEDDING_DIMENSION", "768")
+
+    module.upgrade()
+
+    assert set(created) == {"job", "job_requirements"}
+    job = {i.name: i for i in created["job"] if isinstance(i, sa.Column)}
+    assert {n for n, c in job.items() if c.nullable} == {
+        "company",
+        "requirements_text",
+        "error_code",
+        "error_message",
+        "extraction",
+    }
+    requirements = {i.name: i for i in created["job_requirements"] if isinstance(i, sa.Column)}
+    assert requirements["embedding"].type.dim == 768  # type: ignore[attr-defined]
+    assert {n for n, c in requirements.items() if c.nullable} == {"min_years"}
+    assert "USING hnsw (embedding vector_cosine_ops)" in sql[0]
+
+
+def test_downgrade_drops_both_job_tables(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0005")
+    dropped: list[str] = []
+    monkeypatch.setattr(module.op, "drop_table", dropped.append)
+
+    module.downgrade()
+
+    assert dropped == ["job_requirements", "job"]

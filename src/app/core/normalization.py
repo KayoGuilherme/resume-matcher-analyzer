@@ -13,6 +13,10 @@ STACK_ALIASES: Mapping[str, str] = MappingProxyType(
         "springboot": "spring boot",
         "postgres": "postgresql",
         "js": "javascript",
+        "k8s": "kubernetes",
+        "golang": "go",
+        "ts": "typescript",
+        "nodejs": "node.js",
     }
 )
 

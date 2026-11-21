@@ -13,6 +13,14 @@ dependencies = [
     "pdfplumber>=0.11.10",
     "python-docx>=1.2.0",
     "python-multipart>=0.0.34",
+    "anthropic>=2.12.0",
+    "openai>=3.57.0",
+    "pgvector>=0.5.1",
+]
+
+[project.optional-dependencies]
+local-embeddings = [
+    "sentence-transformers>=6.3.0",
 ]
 
 [dependency-groups]
@@ -54,9 +62,10 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = ["-m", "not integration"]
+addopts = ["-m", "not integration and not real_provider"]
 markers = [
     "integration: needs a real PostgreSQL (DATABASE_URL); excluded from the default run",
+    "real_provider: calls the LLM/embeddings provider configured in the environment; excluded from the default run",
 ]
 
 [tool.coverage.run]
@@ -66,3 +75,7 @@ source_pkgs = ["app"]
 [tool.coverage.report]
 fail_under = 80
 show_missing = true
+
+[[tool.mypy.overrides]]
+module = ["sentence_transformers", "sentence_transformers.*"]
+ignore_missing_imports = true

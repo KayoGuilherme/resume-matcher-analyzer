@@ -79,6 +79,7 @@ def _row(detail: ResumeDetail) -> Resume:
         parsing_metadata=detail.metadata.model_dump(),
         issues=[issue.model_dump() for issue in detail.issues],
         created_at=detail.created_at,
+        status="uploaded",
     )
 
 

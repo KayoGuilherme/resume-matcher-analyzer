@@ -5,7 +5,13 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.ai.extraction.models import ExtractionResult
 from app.ai.parsing.models import FileType, ParsingIssue
+from app.core.processing import ProcessingError, ProcessingStatus
+
+# Shared with jobs; the resume API names are kept.
+ResumeStatus = ProcessingStatus
+ResumeError = ProcessingError
 
 
 class ResumeMetadata(BaseModel):
@@ -30,9 +36,12 @@ class ResumeSummary(BaseModel):
     metadata: ResumeMetadata
     issues: list[ParsingIssue]
     created_at: datetime
+    status: ResumeStatus = "uploaded"
+    error: ResumeError | None = None
 
 
 class ResumeDetail(ResumeSummary):
-    """A resume with its extracted text."""
+    """A resume with its extracted text and the extraction of its last successful processing."""
 
     text: str
+    extraction: ExtractionResult | None = None
