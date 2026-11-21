@@ -243,8 +243,9 @@ async def test_an_unknown_model_is_a_general_llm_error_with_only_the_status() ->
 def test_the_production_schema_classes_have_strict_compatible_schemas() -> None:
     from openai import pydantic_function_tool
 
+    from app.ai.extraction.job_models import ExtractedJob
     from app.ai.extraction.models import ExtractedResume
 
-    for schema in (Person, ExtractedResume):
+    for schema in (Person, ExtractedResume, ExtractedJob):
         parameters = pydantic_function_tool(schema)["function"].get("parameters", {})
         assert parameters["additionalProperties"] is False

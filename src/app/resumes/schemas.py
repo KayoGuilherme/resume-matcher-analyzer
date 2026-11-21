@@ -2,14 +2,16 @@
 
 import uuid
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel
 
 from app.ai.extraction.models import ExtractionResult
 from app.ai.parsing.models import FileType, ParsingIssue
+from app.core.processing import ProcessingError, ProcessingStatus
 
-ResumeStatus = Literal["uploaded", "processing", "ready", "failed"]
+# Shared with jobs; the resume API names are kept.
+ResumeStatus = ProcessingStatus
+ResumeError = ProcessingError
 
 
 class ResumeMetadata(BaseModel):
@@ -20,13 +22,6 @@ class ResumeMetadata(BaseModel):
     word_count: int
     table_count: int
     image_count: int
-
-
-class ResumeError(BaseModel):
-    """Why the last processing run failed. Never contains resume content."""
-
-    code: str
-    message: str
 
 
 class ResumeSummary(BaseModel):

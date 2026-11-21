@@ -10,20 +10,16 @@ from typing import NamedTuple
 
 from starlette.concurrency import run_in_threadpool
 
-from app.ai.embeddings.base import EmbeddingClient, EmbeddingError
-from app.ai.llm.base import (
-    LLMAuthError,
-    LLMClient,
-    LLMInvalidOutputError,
-    LLMTimeoutError,
-    LLMTransientError,
-)
+from app.ai.embeddings.base import EmbeddingClient
+from app.ai.error_codes import processing_error_code
+from app.ai.llm.base import LLMClient
 from app.ai.parsing import parse_document
 from app.ai.parsing.detect import detect_file_type
 from app.ai.parsing.models import UnreadableDocumentError
 from app.ai.parsing.quality import check_quality
 from app.ai.pipeline import process_resume_text
 from app.core.errors import DomainError
+from app.core.processing import PROCESSING_MESSAGES, AlreadyProcessingError
 from app.core.storage import FileStorage
 from app.resumes.repository import ResumeRepository
 from app.resumes.schemas import ResumeDetail, ResumeMetadata, ResumeSummary
@@ -62,51 +58,6 @@ class NoExtractableTextError(DomainError):
 class ResumeNotFoundError(DomainError):
     status_code = 404
     code = "resume_not_found"
-
-
-class AlreadyProcessingError(DomainError):
-    status_code = 409
-    code = "already_processing"
-
-
-# Processing failures: stable code -> fixed message. Never built from exception text, which may
-# carry resume content or secrets.
-PROCESSING_MESSAGES = {
-    "llm_auth_failed": "The LLM provider rejected the credentials. Check LLM_API_KEY.",
-    "llm_timeout": (
-        "The LLM did not answer in time. Increase LLM_TIMEOUT_SECONDS or use a faster model."
-    ),
-    "llm_unavailable": (
-        "The LLM provider was unavailable or rate limiting after several attempts. Try again later."
-    ),
-    "llm_invalid_output": (
-        "The LLM's answer could not be validated against the resume schema. Try again or use a "
-        "more capable model."
-    ),
-    "embedding_failed": (
-        "Creating the embeddings failed. Check the EMBEDDING_* settings and that the embedding "
-        "provider is reachable."
-    ),
-    "processing_interrupted": (
-        "Processing was interrupted by an application restart. Process the resume again."
-    ),
-    "processing_failed": "Processing failed unexpectedly. Try again.",
-}
-
-
-def processing_error_code(error: Exception) -> str:
-    """The one place where AI-layer errors become resume error codes."""
-    if isinstance(error, LLMAuthError):
-        return "llm_auth_failed"
-    if isinstance(error, LLMTimeoutError):
-        return "llm_timeout"
-    if isinstance(error, LLMTransientError):
-        return "llm_unavailable"
-    if isinstance(error, LLMInvalidOutputError):
-        return "llm_invalid_output"
-    if isinstance(error, EmbeddingError):
-        return "embedding_failed"
-    return "processing_failed"
 
 
 class UploadResult(NamedTuple):

@@ -22,7 +22,8 @@ Backend only: Python 3.12, FastAPI, PostgreSQL + pgvector.
 ```
 src/app/
   main.py          # creates the app and includes routers. No logic here.
-  core/            # config.py (pydantic-settings), db.py, logging.py, errors.py, retry.py, storage.py
+  core/            # config.py (pydantic-settings), db.py, logging.py, errors.py, retry.py, storage.py,
+                   # normalization.py (stack/language names), processing.py (status, error codes+messages shared by resumes and jobs)
   resumes/         # one folder per feature: resumes, jobs, profile, analyses
     router.py      # HTTP only (like a Controller)
     schemas.py     # Pydantic request/response models (like DTOs)
@@ -30,8 +31,10 @@ src/app/
     repository.py  # DB access only
     service.py     # business logic
     startup.py     # startup checks (embedding dimension, interrupted processing)
+  jobs/            # same layout as resumes/: router, schemas, models (job, job_requirements), repository, service, startup
   ai/
     errors.py      # AINotConfiguredError (503 ai_not_configured), shared by both factories
+    error_codes.py # processing_error_code: AI-layer errors -> stable processing error codes
     llm/           # the ONLY place that calls an LLM provider
       base.py          # LLMClient protocol, typed errors, Transport protocol adapters implement
       structured.py    # StructuredLLM: validation, repair retry, native->JSON fallback, backoff, logging
@@ -42,11 +45,12 @@ src/app/
     embeddings/    # the ONLY place that creates embeddings
       base.py          # EmbeddingClient protocol, typed errors, BatchingEmbeddingClient (batches, retries, dimension check)
       openai_client.py / local.py  # adapters (local = sentence-transformers, optional extra)
-      fake.py / factory.py
+      fake.py / factory.py / dimension.py  # dimension.py: startup check of the vector column size
     parsing/       # PDF/DOCX -> clean text
     extraction/    # text -> structured Resume (models, verify, experience, resume, chunking)
-    prompts/       # prompts as versioned .md files (version in the header) + loader.py, never inline strings
-    pipeline.py    # orchestrates extract -> chunk -> embed (pure, no DB)
+                   # and Job (job_models, job, priority: must/nice from EN/PT wording)
+    prompts/       # prompts as versioned .md files (resume_extraction, job_extraction; version in the header) + loader.py, never inline strings
+    pipeline.py    # orchestrates extract -> chunk/requirements -> embed for resumes and jobs (pure, no DB)
 tests/             # mirrors src/app
 evals/             # dataset of resume/job pairs + runner
 alembic/           # migrations

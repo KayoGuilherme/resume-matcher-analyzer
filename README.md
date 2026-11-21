@@ -225,21 +225,25 @@ sizes.
 
 ### Changing the embedding model
 
-Vectors of different models are not comparable, even with the same dimension. Each chunk stores the
-model that made it, so you can see what is stale:
+Vectors of different models are not comparable, even with the same dimension. Resume chunks and
+job requirements both store the model that made them, so you can see what is stale:
 
 ```sql
-SELECT embedding_model, count(*) FROM resume_chunk GROUP BY 1;
+SELECT 'resume_chunk' AS table_name, embedding_model, count(*) FROM resume_chunk GROUP BY 2
+UNION ALL
+SELECT 'job_requirements', embedding_model, count(*) FROM job_requirements GROUP BY 2;
 ```
 
 - **Same dimension** (for example `bge-m3` to `multilingual-e5-base` with a 1024-wide setting): change
   `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL`, restart, then `POST /resumes/{id}/process` for every
-  resume (this re-runs the extraction too).
-- **Different dimension**: write a new migration (never edit `0004`) that drops the index
-  `ix_resume_chunk_embedding`, deletes the rows of `resume_chunk` (they are derived data), runs
-  `ALTER TABLE resume_chunk ALTER COLUMN embedding TYPE vector(<N>)`, and recreates the index with
-  `CREATE INDEX ix_resume_chunk_embedding ON resume_chunk USING hnsw (embedding vector_cosine_ops)`.
-  Set `EMBEDDING_DIMENSION=<N>`, run `alembic upgrade head`, restart, and process the resumes again.
+  resume and `POST /jobs/{id}/process` for every job (this re-runs the extraction too).
+- **Different dimension**: write a new migration (never edit `0004` or `0005`) that, for **both**
+  `resume_chunk` and `job_requirements`, drops the index (`ix_resume_chunk_embedding`,
+  `ix_job_requirements_embedding`), deletes the rows (they are derived data), runs
+  `ALTER TABLE <table> ALTER COLUMN embedding TYPE vector(<N>)`, and recreates the index with
+  `CREATE INDEX <index> ON <table> USING hnsw (embedding vector_cosine_ops)`. Set
+  `EMBEDDING_DIMENSION=<N>`, run `alembic upgrade head`, restart (the startup check compares both
+  tables), and process the resumes and the jobs again.
 
 ## Resume processing API
 
@@ -281,6 +285,70 @@ from the default run and from CI, and skipped when nothing is configured:
 ```bash
 uv run --env-file .env pytest -m real_provider -rs
 ```
+
+## Jobs API
+
+The other half of the comparison: a job posting becomes a list of separate, searchable
+requirements. Single user, no authentication. Needs a configured LLM and embeddings to be
+processed (see "AI providers").
+
+```bash
+curl -X POST localhost:8000/jobs -H 'content-type: application/json' -d '{
+  "title": "Senior Backend Engineer",
+  "company": "ACME",
+  "description": "We build payments. Requirements:\n- 5+ years of backend\n- Python is required\nNice to have:\n- Terraform",
+  "requirements_text": null
+}'                                                       # 201, status "uploaded"
+curl localhost:8000/jobs                                 # all jobs, newest first, without the texts
+curl localhost:8000/jobs/<id>                            # one job with its texts and extraction
+curl -X DELETE localhost:8000/jobs/<id>                  # 204, also removes its requirements
+curl -X POST localhost:8000/jobs/<id>/process            # 202, status "processing"; background
+```
+
+Fields: `title` (required, up to 200 characters), `company` (optional, up to 200), `description`
+(required, the posting as free text, up to 50,000) and `requirements_text` (optional, up to 50,000;
+for the "what the position needs" part when it is not inside the description). Text is trimmed, a
+blank `company` or `requirements_text` is stored as null, unknown fields are rejected (422), and
+posting the same text twice creates two jobs. Unknown ids answer 404 `job_not_found`.
+
+Processing works exactly like resume processing: the same statuses (`uploaded`, `processing`,
+`ready`, `failed`), the same error codes and messages, `404`, `409 already_processing` and
+`503 ai_not_configured` (see "Resume processing API"), runs in the background, keeps the previous
+results when a run fails, and marks jobs that were `processing` during a restart as `failed` with
+`processing_interrupted`.
+
+A `ready` job has an `extraction` with `job` (`seniority` `junior|mid|senior` or null, `language`
+`en|pt|other`, `responsibilities`, `ats_keywords` and `requirements`), `warnings` and how it was made
+(`prompt_name`, `prompt_version`, `llm_provider`, `llm_model`, `extracted_at`). Each requirement has:
+
+| Field | Meaning |
+|---|---|
+| `id` | assigned by the code; the id of its row in `job_requirements` |
+| `text` | a short statement of the demand; this is what gets embedded |
+| `category` | `skill`, `years` (general experience, not tied to one technology), `language`, `education`, `domain` or `soft` |
+| `priority` | `must_have` or `nice_to_have` |
+| `priority_unclear` | true when the priority could not be decided and defaulted to `must_have` |
+| `min_years` | the minimum years when the posting states a number (any category) |
+| `keywords` | each with `name`, `normalized` (see `core/normalization.py`) and normalized `synonyms` |
+| `source_text` | the posting's exact words for this requirement |
+
+How priority is decided (English and Portuguese, accents and case ignored), in this order:
+(1) cue phrases in the requirement's own text: `required`, `must`, `mandatory`, `obrigatório`,
+`necessário`, `imprescindível`, `indispensável` mean must-have; `nice to have`, `a plus`, `preferred`,
+`desirable`, `ideally`, `diferencial`, `desejável`, `será um plus`, `preferencialmente` mean
+nice-to-have; a negated must-cue (`not required`, `não é obrigatório`) means nice-to-have; (2) the
+heading of the section it sits in (`Requirements`, `Requisitos` versus `Nice to have`,
+`Preferred qualifications`, `Diferenciais`); (3) the model's own judgment; (4) otherwise `must_have`
+with `priority_unclear: true`. The model never overrides a cue found in the posting. The cue lists
+live in `src/app/ai/extraction/priority.py`.
+
+Every `source_text` and every responsibility is checked against the posting: the model gets one
+correction round for the ones that are not there, and whatever is still invented is dropped.
+`warnings` lists `dropped_unverified_items` (how many were dropped) and
+`priority_unclear_requirements` (how many are flagged), when they are not zero.
+
+Each requirement is also stored with its vector in `job_requirements` (HNSW cosine index, the
+embedding model recorded), replaced as a whole on every successful run.
 
 ## Repository settings (manual)
 

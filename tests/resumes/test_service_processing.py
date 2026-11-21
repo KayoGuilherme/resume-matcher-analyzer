@@ -10,6 +10,7 @@ from app.ai.embeddings.base import (
     EmbeddingTransientError,
 )
 from app.ai.embeddings.fake import FakeEmbeddingClient
+from app.ai.error_codes import processing_error_code
 from app.ai.llm.base import (
     LLMAuthError,
     LLMError,
@@ -18,13 +19,8 @@ from app.ai.llm.base import (
     LLMTransientError,
 )
 from app.ai.llm.fake import FakeLLMClient
-from app.resumes.service import (
-    PROCESSING_MESSAGES,
-    AlreadyProcessingError,
-    ResumeNotFoundError,
-    ResumeService,
-    processing_error_code,
-)
+from app.core.processing import PROCESSING_MESSAGES, AlreadyProcessingError
+from app.resumes.service import ResumeNotFoundError, ResumeService
 from tests.ai.extraction.builders import RESUME_TEXT, experience, extracted
 from tests.resumes.fakes import FakeRepository, FakeStorage
 from tests.resumes.processing import stored_resume

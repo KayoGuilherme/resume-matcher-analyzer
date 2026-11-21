@@ -6,35 +6,21 @@ from typing import Protocol
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.ai.embeddings.dimension import check_embedding_dimension
 from app.core.config import Settings
 from app.core.db import get_sessionmaker
+from app.core.processing import PROCESSING_MESSAGES
 from app.resumes.repository import ResumeRepository
-from app.resumes.service import PROCESSING_MESSAGES
 
 logger = logging.getLogger(__name__)
 
 CONNECT_TIMEOUT_SECONDS = 5
 
 
-class EmbeddingDimensionMismatchError(RuntimeError):
-    """The configured EMBEDDING_DIMENSION does not match the database. The app must not start."""
-
-
 class StartupRepository(Protocol):
     async def chunk_embedding_dimension(self) -> int | None: ...
 
     async def mark_interrupted(self, message: str) -> int: ...
-
-
-def check_embedding_dimension(configured: int, in_database: int | None) -> None:
-    """Fail loudly when the vector column and the configuration disagree."""
-    if in_database is None or in_database == configured:
-        return
-    raise EmbeddingDimensionMismatchError(
-        f"EMBEDDING_DIMENSION is {configured} but the database column resume_chunk.embedding has "
-        f"{in_database} dimensions. Set EMBEDDING_DIMENSION={in_database}, or follow the "
-        "procedure in README.md, section 'Changing the embedding model', to change the model."
-    )
 
 
 async def run_startup_checks(repository: StartupRepository, settings: Settings) -> None:

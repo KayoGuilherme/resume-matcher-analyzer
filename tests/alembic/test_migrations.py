@@ -194,3 +194,49 @@ def test_downgrade_removes_the_chunk_table_and_columns(monkeypatch: pytest.Monke
         "column:error_message",
         "column:extraction",
     }
+
+
+def test_fifth_migration_follows_the_fourth() -> None:
+    module = _load_migration("0005")
+
+    assert module.revision == "0005"
+    assert module.down_revision == "0004"
+
+
+def test_upgrade_creates_the_job_and_requirements_tables(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0005")
+    created: dict[str, tuple[object, ...]] = {}
+    sql: list[str] = []
+    monkeypatch.setattr(
+        module.op, "create_table", lambda name, *items: created.update({name: items})
+    )
+    monkeypatch.setattr(module.op, "create_index", lambda *_a, **_k: None)
+    monkeypatch.setattr(module.op, "execute", sql.append)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/x")
+    monkeypatch.setenv("EMBEDDING_DIMENSION", "768")
+
+    module.upgrade()
+
+    assert set(created) == {"job", "job_requirements"}
+    job = {i.name: i for i in created["job"] if isinstance(i, sa.Column)}
+    assert {n for n, c in job.items() if c.nullable} == {
+        "company",
+        "requirements_text",
+        "error_code",
+        "error_message",
+        "extraction",
+    }
+    requirements = {i.name: i for i in created["job_requirements"] if isinstance(i, sa.Column)}
+    assert requirements["embedding"].type.dim == 768  # type: ignore[attr-defined]
+    assert {n for n, c in requirements.items() if c.nullable} == {"min_years"}
+    assert "USING hnsw (embedding vector_cosine_ops)" in sql[0]
+
+
+def test_downgrade_drops_both_job_tables(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0005")
+    dropped: list[str] = []
+    monkeypatch.setattr(module.op, "drop_table", dropped.append)
+
+    module.downgrade()
+
+    assert dropped == ["job_requirements", "job"]

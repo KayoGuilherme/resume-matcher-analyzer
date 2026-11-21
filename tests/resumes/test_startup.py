@@ -2,14 +2,13 @@ import logging
 
 import pytest
 
-from app.core.config import Settings
-from app.resumes.service import PROCESSING_MESSAGES
-from app.resumes.startup import (
+from app.ai.embeddings.dimension import (
     EmbeddingDimensionMismatchError,
     check_embedding_dimension,
-    run_startup,
-    run_startup_checks,
 )
+from app.core.config import Settings
+from app.core.processing import PROCESSING_MESSAGES
+from app.resumes.startup import run_startup, run_startup_checks
 from tests.resumes.fakes import FakeRepository
 from tests.resumes.processing import stored_resume
 

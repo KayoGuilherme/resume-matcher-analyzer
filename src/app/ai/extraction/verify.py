@@ -28,9 +28,14 @@ def normalize(text: str) -> str:
     return _WHITESPACE.sub("", unicodedata.normalize("NFKC", text))
 
 
+def comparison_key(item: str) -> str:
+    """What `item` is compared as: no leading bullet symbol, no whitespace, NFKC."""
+    return normalize(_LEADING_SYMBOLS.sub("", unicodedata.normalize("NFKC", item)))
+
+
 def is_verbatim(item: str, normalized_resume_text: str) -> bool:
     """Whether `item` appears in the resume text (already passed through `normalize`)."""
-    needle = normalize(_LEADING_SYMBOLS.sub("", unicodedata.normalize("NFKC", item)))
+    needle = comparison_key(item)
     return bool(needle) and needle in normalized_resume_text
 
 

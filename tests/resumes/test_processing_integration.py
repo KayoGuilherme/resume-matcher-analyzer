@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.embeddings import get_embedding_client
+from app.ai.embeddings.dimension import EmbeddingDimensionMismatchError
 from app.ai.embeddings.fake import FakeEmbeddingClient
 from app.ai.llm import get_llm_client
 from app.ai.llm.fake import FakeLLMClient
@@ -22,11 +23,12 @@ from app.ai.pipeline import ProcessedResume, process_resume_text
 from app.core.config import Settings, get_settings
 from app.core.db import get_engine, get_sessionmaker
 from app.core.logging import configure_logging
+from app.core.processing import PROCESSING_MESSAGES
 from app.main import create_app
 from app.resumes.repository import ResumeRepository
 from app.resumes.router import get_background_service_factory
-from app.resumes.service import PROCESSING_MESSAGES, ResumeService
-from app.resumes.startup import EmbeddingDimensionMismatchError, run_startup
+from app.resumes.service import ResumeService
+from app.resumes.startup import run_startup
 from tests.ai.extraction.builders import RESUME_TEXT, experience, extracted
 from tests.fixtures import documents
 from tests.resumes.processing import stored_resume

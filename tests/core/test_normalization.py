@@ -58,3 +58,22 @@ def test_fold_text_ignores_case_accents_and_spacing(raw: str, expected: str) -> 
 
 def test_name_normalization_keeps_accents_in_unknown_names() -> None:
     assert normalize_language_name("Français") == "français"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("K8s", "kubernetes"),
+        ("  GoLang ", "go"),
+        ("TS", "typescript"),
+        ("NodeJS", "node.js"),
+        ("Kubernetes", "kubernetes"),
+    ],
+)
+def test_more_stack_aliases(raw: str, expected: str) -> None:
+    assert normalize_stack_name(raw) == expected
+
+
+def test_the_new_aliases_are_stack_only() -> None:
+    assert normalize_language_name("ts") == "ts"
+    assert normalize_language_name("k8s") == "k8s"
