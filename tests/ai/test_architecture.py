@@ -40,3 +40,42 @@ def test_the_scan_sees_the_provider_packages() -> None:
 def test_the_single_file_modules_of_the_old_layout_are_gone() -> None:
     assert not (SRC / "ai" / "llm.py").exists()
     assert not (SRC / "ai" / "embeddings.py").exists()
+
+
+def _imported_modules(path: Path) -> set[str]:
+    modules: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.Import):
+            modules |= {alias.name for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            modules.add(node.module)
+    return modules
+
+
+def test_the_matching_package_is_scanned_and_imports_no_provider_library() -> None:
+    files = sorted((SRC / "ai" / "matching").glob("*.py"))
+
+    assert {"engine.py", "judge.py", "deterministic.py", "retrieval.py"} <= {f.name for f in files}
+    assert all(not (_imported_roots(f) & PROVIDER_MODULES) for f in files)
+
+
+def test_the_matching_package_depends_on_no_feature_package() -> None:
+    features = ("app.resumes", "app.jobs", "app.profile", "app.analyses", "app.health")
+    offenders = [
+        f"{path.name} imports {module}"
+        for path in sorted((SRC / "ai" / "matching").glob("*.py"))
+        for module in _imported_modules(path)
+        if module.startswith(features)
+    ]
+
+    assert offenders == []
+
+
+def test_the_matching_package_does_not_import_the_database_layer() -> None:
+    offenders = [
+        path.name
+        for path in sorted((SRC / "ai" / "matching").glob("*.py"))
+        if any(m.startswith(("sqlalchemy", "app.core.db")) for m in _imported_modules(path))
+    ]
+
+    assert offenders == []

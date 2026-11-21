@@ -32,6 +32,7 @@ src/app/
     service.py     # business logic
     startup.py     # startup checks (embedding dimension, interrupted processing)
   jobs/            # same layout as resumes/: router, schemas, models (job, job_requirements), repository, service, startup
+  analyses/        # same layout: router, schemas, models (analysis), repository, service, startup (gap analysis of a resume against a job)
   ai/
     errors.py      # AINotConfiguredError (503 ai_not_configured), shared by both factories
     error_codes.py # processing_error_code: AI-layer errors -> stable processing error codes
@@ -49,8 +50,10 @@ src/app/
     parsing/       # PDF/DOCX -> clean text
     extraction/    # text -> structured Resume (models, verify, experience, resume, chunking)
                    # and Job (job_models, job, priority: must/nice from EN/PT wording)
-    prompts/       # prompts as versioned .md files (resume_extraction, job_extraction; version in the header) + loader.py, never inline strings
+    prompts/       # prompts as versioned .md files (resume_extraction, job_extraction, gap_judge; version in the header) + loader.py, never inline strings
     pipeline.py    # orchestrates extract -> chunk/requirements -> embed for resumes and jobs (pure, no DB)
+    matching/      # gap analysis, pure (no DB, no HTTP): models, errors, text (literal matching), levels (language levels),
+                   # deterministic -> retrieval -> judge -> profile_check (the four steps), ats, messages, cache, engine (orchestrates)
 tests/             # mirrors src/app
 evals/             # dataset of resume/job pairs + runner
 alembic/           # migrations

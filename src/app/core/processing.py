@@ -39,6 +39,14 @@ PROCESSING_MESSAGES = {
         "Creating the embeddings failed. Check the EMBEDDING_* settings and that the embedding "
         "provider is reachable."
     ),
+    "analysis_limit_exceeded": (
+        "The analysis needs more LLM calls than allowed. Raise ANALYSIS_MAX_LLM_CALLS or "
+        "ANALYSIS_MAX_REQUIREMENTS_PER_CALL, then try again."
+    ),
+    "embedding_model_mismatch": (
+        "The resume and the job were embedded with different models. Process the older of the two "
+        "again."
+    ),
     "processing_interrupted": (
         "Processing was interrupted by an application restart. Process it again."
     ),

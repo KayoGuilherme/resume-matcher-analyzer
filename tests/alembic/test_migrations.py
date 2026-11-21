@@ -240,3 +240,55 @@ def test_downgrade_drops_both_job_tables(monkeypatch: pytest.MonkeyPatch) -> Non
     module.downgrade()
 
     assert dropped == ["job_requirements", "job"]
+
+
+def test_sixth_migration_follows_the_fifth() -> None:
+    module = _load_migration("0006")
+
+    assert module.revision == "0006"
+    assert module.down_revision == "0005"
+
+
+def test_upgrade_creates_the_analysis_table_and_its_indexes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_migration("0006")
+    created: dict[str, tuple[object, ...]] = {}
+    indexes: list[tuple[str, list[str], dict[str, object]]] = []
+    monkeypatch.setattr(
+        module.op, "create_table", lambda name, *items: created.update({name: items})
+    )
+    monkeypatch.setattr(
+        module.op,
+        "create_index",
+        lambda name, _table, columns, **kwargs: indexes.append((name, columns, kwargs)),
+    )
+
+    module.upgrade()
+
+    assert set(created) == {"analysis"}
+    columns = {i.name: i for i in created["analysis"] if isinstance(i, sa.Column)}
+    assert {n for n, c in columns.items() if c.nullable} == {
+        "error_code",
+        "error_message",
+        "result",
+        "completed_at",
+    }
+    foreign_keys = [i for i in created["analysis"] if isinstance(i, sa.ForeignKeyConstraint)]
+    assert {(fk.elements[0].target_fullname, fk.ondelete) for fk in foreign_keys} == {
+        ("resume.id", "CASCADE"),
+        ("job.id", "CASCADE"),
+    }
+    unique = next(kwargs for name, _, kwargs in indexes if name == "uq_analysis_cache_key_active")
+    assert unique["unique"] is True
+    assert str(unique["postgresql_where"]) == "status IN ('processing', 'ready')"
+
+
+def test_downgrade_drops_the_analysis_table(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_migration("0006")
+    dropped: list[str] = []
+    monkeypatch.setattr(module.op, "drop_table", dropped.append)
+
+    module.downgrade()
+
+    assert dropped == ["analysis"]

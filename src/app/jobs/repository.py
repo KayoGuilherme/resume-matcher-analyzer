@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -14,6 +15,14 @@ from app.ai.pipeline import ProcessedJob
 from app.core.processing import ProcessingError
 from app.jobs.models import Job, JobRequirement
 from app.jobs.schemas import JobDetail, JobSummary
+
+
+@dataclass(frozen=True)
+class StoredVectors:
+    """The vectors of a job's requirements, by requirement id, and the models that made them."""
+
+    vectors: dict[uuid.UUID, list[float]]
+    embedding_models: set[str]
 
 
 def _summary_fields(row: Job) -> dict[str, Any]:
@@ -167,6 +176,22 @@ class JobRepository:
         count = len(result.all())
         await self._session.commit()
         return count
+
+    async def get_requirement_vectors(self, job_id: uuid.UUID) -> StoredVectors:
+        """The vectors of a job's requirements. Empty for an unknown id."""
+        rows = (
+            (
+                await self._session.execute(
+                    select(JobRequirement).where(JobRequirement.job_id == job_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return StoredVectors(
+            vectors={row.id: [float(x) for x in row.embedding] for row in rows},
+            embedding_models={row.embedding_model for row in rows},
+        )
 
     async def requirements_embedding_dimension(self) -> int | None:
         """The size of `job_requirements.embedding`, or None if the table does not exist."""

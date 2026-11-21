@@ -290,3 +290,39 @@ async def test_the_whole_flow_with_fakes_and_no_content_in_debug_logs(
     logged = " ".join(str(r.__dict__) + r.getMessage() for r in caplog.records)
     for fragment in (PDF_BULLET, "Backend Developer", "Acme", "cv.pdf"):
         assert fragment not in logged
+
+
+async def test_the_chunks_come_back_in_resume_order_with_their_vectors(
+    settings: Settings,
+) -> None:
+    resume_id = await _add(settings)
+    async with _repository(settings) as repository:
+        await repository.begin_processing(resume_id)
+        assert await repository.save_processed(resume_id, await _processed(GOOD, WRAPPED))
+        stored = await repository.get_chunks(resume_id)
+
+    assert [c.text for c in stored.chunks] == ["Cloud: AWS, Docker", GOOD, WRAPPED]
+    assert [c.position for c in stored.chunks] == [0, 1, 2]
+    assert all(len(c.embedding) == 1024 for c in stored.chunks)
+    assert all(isinstance(x, float) for x in stored.chunks[0].embedding)
+    assert stored.embedding_models == {"fake-bge"}
+    assert [c.section for c in stored.chunks] == ["skills", "experience", "experience"]
+
+
+async def test_the_chunks_of_an_unknown_resume_are_empty(settings: Settings) -> None:
+    async with _repository(settings) as repository:
+        stored = await repository.get_chunks(uuid.uuid4())
+
+    assert stored.chunks == [] and stored.embedding_models == set()
+
+
+async def test_the_chunks_of_another_resume_are_not_mixed_in(settings: Settings) -> None:
+    first, second = await _add(settings), await _add(settings)
+    async with _repository(settings) as repository:
+        for resume_id, bullet in ((first, GOOD), (second, WRAPPED)):
+            await repository.begin_processing(resume_id)
+            await repository.save_processed(resume_id, await _processed(bullet))
+        stored = await repository.get_chunks(first)
+
+    assert GOOD in [c.text for c in stored.chunks]
+    assert WRAPPED not in [c.text for c in stored.chunks]

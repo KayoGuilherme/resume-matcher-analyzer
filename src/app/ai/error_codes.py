@@ -7,6 +7,11 @@ from app.ai.llm.base import (
     LLMTimeoutError,
     LLMTransientError,
 )
+from app.ai.matching.errors import (
+    AnalysisLimitError,
+    EmbeddingModelMismatchError,
+    JudgeIncompleteError,
+)
 
 
 def processing_error_code(error: Exception) -> str:
@@ -21,4 +26,10 @@ def processing_error_code(error: Exception) -> str:
         return "llm_invalid_output"
     if isinstance(error, EmbeddingError):
         return "embedding_failed"
+    if isinstance(error, AnalysisLimitError):
+        return "analysis_limit_exceeded"
+    if isinstance(error, EmbeddingModelMismatchError):
+        return "embedding_model_mismatch"
+    if isinstance(error, JudgeIncompleteError):
+        return "llm_invalid_output"
     return "processing_failed"

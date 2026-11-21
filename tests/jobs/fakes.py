@@ -4,6 +4,7 @@ import uuid
 
 from app.ai.pipeline import ProcessedJob
 from app.core.processing import ProcessingError
+from app.jobs.repository import StoredVectors
 from app.jobs.schemas import JobDetail, JobSummary
 
 
@@ -66,6 +67,15 @@ class FakeJobRepository:
                 self.by_id[job_id] = job.model_copy(update={"status": "failed", "error": error})
                 count += 1
         return count
+
+    async def get_requirement_vectors(self, job_id: uuid.UUID) -> StoredVectors:
+        processed = self.requirements.get(job_id)
+        if processed is None:
+            return StoredVectors(vectors={}, embedding_models=set())
+        return StoredVectors(
+            vectors={item.requirement.id: item.embedding for item in processed.requirements},
+            embedding_models={processed.embedding_model},
+        )
 
     async def requirements_embedding_dimension(self) -> int | None:
         return self.column_dimension

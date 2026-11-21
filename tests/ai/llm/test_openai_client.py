@@ -245,7 +245,8 @@ def test_the_production_schema_classes_have_strict_compatible_schemas() -> None:
 
     from app.ai.extraction.job_models import ExtractedJob
     from app.ai.extraction.models import ExtractedResume
+    from app.ai.matching.models import JudgeBatch
 
-    for schema in (Person, ExtractedResume, ExtractedJob):
+    for schema in (Person, ExtractedResume, ExtractedJob, JudgeBatch):
         parameters = pydantic_function_tool(schema)["function"].get("parameters", {})
         assert parameters["additionalProperties"] is False

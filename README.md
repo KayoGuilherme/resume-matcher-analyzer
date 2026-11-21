@@ -245,6 +245,17 @@ SELECT 'job_requirements', embedding_model, count(*) FROM job_requirements GROUP
   `EMBEDDING_DIMENSION=<N>`, run `alembic upgrade head`, restart (the startup check compares both
   tables), and process the resumes and the jobs again.
 
+### Analysis settings
+
+The gap analysis (`POST /analyses`) reads four settings. They are listed in `.env.example`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ANALYSIS_TOP_K` | 5 | Resume chunks kept per requirement (1-20) |
+| `ANALYSIS_MIN_SIMILARITY` | 0.4 | Lowest cosine similarity a chunk may have (0-1); depends on the embedding model |
+| `ANALYSIS_MAX_REQUIREMENTS_PER_CALL` | 8 | Requirements sent to the LLM in one call (1-50) |
+| `ANALYSIS_MAX_LLM_CALLS` | 10 | LLM calls one analysis may make (1-100) |
+
 ## Resume processing API
 
 Turn a stored resume into structured data and vectors (needs a configured LLM and embeddings).
@@ -349,6 +360,72 @@ correction round for the ones that are not there, and whatever is still invented
 
 Each requirement is also stored with its vector in `job_requirements` (HNSW cosine index, the
 embedding model recorded), replaced as a whole on every successful run.
+
+## Analyses API
+
+The core of the product: for every requirement of a job, decide whether the resume satisfies it
+and prove it. Single user, no authentication. It needs a **ready** resume, a **ready** job (both
+processed with the same embedding model), the candidate profile (`PUT /profile`) and a configured
+LLM (see "AI providers"). It never changes the resume, the job or the profile.
+
+```bash
+curl -X POST localhost:8000/analyses -H 'content-type: application/json' \
+  -d '{"resume_id": "<resume id>", "job_id": "<job id>"}'
+# 202 {"id": "...", "status": "processing", ...}  (or 200 with the stored result, see "Cache")
+curl localhost:8000/analyses/<id>      # poll until "ready" (result) or "failed" (error)
+```
+
+A `ready` analysis has `result.findings`, one per requirement of the job in the job's order, and
+`result.ats_coverage`, `result.warnings` and `result.provenance` (prompt version, LLM, embedding
+model, number of LLM calls, settings used).
+
+Each finding has the requirement's `priority` (and `priority_unclear`), a `verdict`, `evidence`,
+an `explanation` and `decided_by`, the step that produced the verdict:
+
+| `decided_by` | What it did |
+|---|---|
+| `deterministic` | Proved it in code: the keyword (or an alias such as `k8s`) is in the resume as a whole term, years computed from the resume's dates reach the minimum, the language level reaches the asked one. It only ever proves `met`; the only `missing` it gives is an education requirement when the resume has no education or certification entry. Keywords of one or two characters (`go`, `c`) never prove anything alone. |
+| `semantic` | No resume chunk reached `ANALYSIS_MIN_SIMILARITY`: `missing`, without an LLM call. |
+| `judge` | The LLM (batched, at most `ANALYSIS_MAX_REQUIREMENTS_PER_CALL` per call) answered `met`, `partial` or `missing` with 1-3 quotes. |
+| `profile` | The resume does not (fully) show it but your profile does: `in_profile_not_in_resume`. This is the most actionable finding: add it to the resume. |
+
+Verdicts: `met`, `partial`, `missing`, `in_profile_not_in_resume`. A `met` or `partial` verdict
+always has 1-3 evidence quotes copied from the resume (`source: "resume"`), checked in code against
+the resume text (whitespace, line breaks and a leading bullet are ignored; words, accents and case
+are not): invented or reworded quotes are dropped, and an answer left without a valid quote becomes
+`missing` with the flag `evidence_not_verbatim` and a fixed explanation. `in_profile_not_in_resume`
+has `source: "profile"` evidence: a notable fact as written, or a statement made of your profile's
+own values.
+
+`ats_coverage` lists which of the job's ATS keywords appear literally in the resume text (`found`,
+with the text as written) and which do not (`missing`). It is a literal check, like an ATS, and
+only the resume counts. There is no score.
+
+**Cache.** Asking again with the same inputs returns the stored analysis (HTTP 200) without
+calling the LLM; while one is running you get it back with 202. A new analysis starts when anything
+it reads changes: the profile, the resume or the job processed again, the judge prompt version, the
+LLM provider or model, or an `ANALYSIS_*` setting. A `failed` analysis is never reused.
+
+**Limits.** `ANALYSIS_MAX_REQUIREMENTS_PER_CALL` and `ANALYSIS_MAX_LLM_CALLS` (see "Analysis
+settings") bound the tokens one analysis can spend. If the requirements that must be judged need
+more calls than allowed, the analysis fails with `analysis_limit_exceeded` before any call.
+
+Errors: `404` `resume_not_found`, `job_not_found`, `analysis_not_found`; `409` `resume_not_ready`,
+`job_not_ready` (process them first), `profile_required` (save the profile),
+`embedding_model_mismatch` (process the older of the resume and the job again); `503`
+`ai_not_configured`; `422` for a bad body. A `failed` analysis has `error.code`: the processing
+codes of resumes and jobs (`llm_auth_failed`, `llm_timeout`, `llm_unavailable`,
+`llm_invalid_output`, `processing_interrupted`, `processing_failed`) plus `analysis_limit_exceeded`
+and `embedding_model_mismatch`. Messages never contain resume, job or profile text.
+
+**Tuning `ANALYSIS_MIN_SIMILARITY`.** The right value depends on the embedding model (0.4 is a
+starting point for `bge-m3`). Too high gives many `missing` from retrieval; too low sends more
+requirements to the LLM. Run the English and Portuguese cases against your model and read the
+reported differences:
+
+```bash
+uv run --env-file .env pytest -m real_provider tests/real_provider/test_gap_analysis.py -rs -W default
+```
 
 ## Repository settings (manual)
 
