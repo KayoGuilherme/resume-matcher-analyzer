@@ -2,7 +2,9 @@
 
 import uuid
 
+from app.ai.matching.models import ChunkInput
 from app.ai.pipeline import ProcessedResume
+from app.resumes.repository import StoredChunks
 from app.resumes.schemas import ResumeDetail, ResumeError, ResumeSummary
 
 
@@ -82,6 +84,23 @@ class FakeRepository:
                 )
                 count += 1
         return count
+
+    async def get_chunks(self, resume_id: uuid.UUID) -> StoredChunks:
+        processed = self.chunks.get(resume_id)
+        if processed is None:
+            return StoredChunks(chunks=[], embedding_models=set())
+        chunks = [
+            ChunkInput(
+                id=uuid.uuid4(),
+                section=item.chunk.section,
+                experience_id=item.chunk.experience_id,
+                position=item.chunk.position,
+                text=item.chunk.text,
+                embedding=item.embedding,
+            )
+            for item in processed.chunks
+        ]
+        return StoredChunks(chunks=chunks, embedding_models={processed.embedding_model})
 
     async def chunk_embedding_dimension(self) -> int | None:
         return self.column_dimension

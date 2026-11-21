@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.analyses.router import router as analyses_router
+from app.analyses.startup import run_analyses_startup
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
@@ -22,6 +24,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     await run_startup(settings)
     await run_jobs_startup(settings)
+    await run_analyses_startup(settings)
     yield
 
 
@@ -32,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(profile_router)
     app.include_router(resumes_router)
     app.include_router(jobs_router)
+    app.include_router(analyses_router)
     return app
 
 

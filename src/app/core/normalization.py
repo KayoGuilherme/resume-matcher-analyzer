@@ -57,3 +57,14 @@ def normalize_stack_name(text: str) -> str:
 def normalize_language_name(text: str) -> str:
     """Return the canonical name of a spoken language (e.g. ``Português`` -> ``portuguese``)."""
     return _normalize(text, LANGUAGE_ALIASES)
+
+
+def aliases_of(canonical: str, *, language: bool = False) -> list[str]:
+    """The known aliases of a canonical name (``kubernetes`` -> ``["k8s"]``), sorted.
+
+    The inverse of `normalize_stack_name` (or of `normalize_language_name` with ``language``).
+    A name without aliases gives an empty list.
+    """
+    table = LANGUAGE_ALIASES if language else STACK_ALIASES
+    target = _clean(canonical)
+    return sorted(alias for alias, name in table.items() if name == target)

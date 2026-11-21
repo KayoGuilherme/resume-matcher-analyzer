@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     embedding_api_key: SecretStr | None = None
     embedding_base_url: str | None = None  # openai_compatible then uses the local Ollama address
 
+    # Gap analysis. The similarity floor depends on the embedding model: tune it with the evals.
+    analysis_top_k: int = Field(default=5, ge=1, le=20)
+    analysis_min_similarity: float = Field(default=0.4, ge=0, le=1, allow_inf_nan=False)
+    analysis_max_requirements_per_call: int = Field(default=8, ge=1, le=50)
+    analysis_max_llm_calls: int = Field(default=10, ge=1, le=100)
+
     @field_validator(
         "llm_provider",
         "llm_model",

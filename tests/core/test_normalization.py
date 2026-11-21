@@ -1,6 +1,11 @@
 import pytest
 
-from app.core.normalization import fold_text, normalize_language_name, normalize_stack_name
+from app.core.normalization import (
+    aliases_of,
+    fold_text,
+    normalize_language_name,
+    normalize_stack_name,
+)
 
 
 @pytest.mark.parametrize("raw", ["  Spring   BOOT ", "SPRING BOOT", "spring boot"])
@@ -77,3 +82,26 @@ def test_more_stack_aliases(raw: str, expected: str) -> None:
 def test_the_new_aliases_are_stack_only() -> None:
     assert normalize_language_name("ts") == "ts"
     assert normalize_language_name("k8s") == "k8s"
+
+
+def test_aliases_of_returns_the_known_aliases_of_a_canonical_name() -> None:
+    assert aliases_of("kubernetes") == ["k8s"]
+    assert aliases_of("postgresql") == ["postgres"]
+    assert aliases_of("javascript") == ["js"]
+
+
+def test_aliases_of_an_unknown_name_is_empty() -> None:
+    assert aliases_of("rust") == []
+    assert aliases_of("") == []
+
+
+def test_aliases_of_uses_the_language_table_only_when_asked() -> None:
+    assert aliases_of("portuguese", language=True) == ["portugues", "pt"]
+    assert aliases_of("english", language=True) == ["en", "ingles"]
+    assert aliases_of("portuguese") == []
+    assert aliases_of("kubernetes", language=True) == []
+
+
+def test_every_alias_normalizes_back_to_its_canonical_name() -> None:
+    for name in ("kubernetes", "postgresql", "javascript", "go", "typescript", "node.js"):
+        assert all(normalize_stack_name(alias) == name for alias in aliases_of(name))

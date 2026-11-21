@@ -322,3 +322,25 @@ async def test_the_whole_flow_with_fakes_and_no_content_in_debug_logs(
         posting.responsibilities[0],
     ):
         assert fragment not in logged
+
+
+async def test_the_requirement_vectors_come_back_by_requirement_id(settings: Settings) -> None:
+    job_id = await _add(settings)
+    processed = await _processed(ENGLISH)
+    async with _repository(settings) as repository:
+        await repository.begin_processing(job_id)
+        assert await repository.save_processed(job_id, processed)
+        stored = await repository.get_requirement_vectors(job_id)
+
+    expected = {item.requirement.id: item.embedding for item in processed.requirements}
+    assert stored.vectors.keys() == expected.keys() and stored.vectors
+    assert all(len(vector) == 1024 for vector in stored.vectors.values())
+    assert all(isinstance(x, float) for x in next(iter(stored.vectors.values())))
+    assert stored.embedding_models == {"fake-bge"}
+
+
+async def test_the_requirement_vectors_of_an_unknown_job_are_empty(settings: Settings) -> None:
+    async with _repository(settings) as repository:
+        stored = await repository.get_requirement_vectors(uuid.uuid4())
+
+    assert stored.vectors == {} and stored.embedding_models == set()

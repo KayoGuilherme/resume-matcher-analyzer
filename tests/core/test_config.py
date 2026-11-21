@@ -91,6 +91,13 @@ _AI_VARIABLES = [
     "EMBEDDING_BASE_URL",
 ]
 
+_ANALYSIS_VARIABLES = [
+    "ANALYSIS_TOP_K",
+    "ANALYSIS_MIN_SIMILARITY",
+    "ANALYSIS_MAX_REQUIREMENTS_PER_CALL",
+    "ANALYSIS_MAX_LLM_CALLS",
+]
+
 
 @pytest.fixture
 def clean_ai_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
@@ -219,3 +226,89 @@ def test_env_example_lists_every_ai_setting_without_real_secrets() -> None:
         assert f"\n{name}=" in example
     assert "sk-" not in example
     assert "Anthropic" in example and "OpenAI" in example and "Ollama" in example
+
+
+@pytest.fixture
+def clean_analysis_env(clean_ai_env: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    for name in _ANALYSIS_VARIABLES:
+        clean_ai_env.delenv(name, raising=False)
+    return clean_ai_env
+
+
+def test_analysis_settings_defaults(clean_analysis_env: pytest.MonkeyPatch) -> None:
+    settings = Settings()
+
+    assert settings.analysis_top_k == 5
+    assert settings.analysis_min_similarity == 0.4
+    assert settings.analysis_max_requirements_per_call == 8
+    assert settings.analysis_max_llm_calls == 10
+
+
+def test_analysis_settings_can_be_overridden(clean_analysis_env: pytest.MonkeyPatch) -> None:
+    clean_analysis_env.setenv("ANALYSIS_TOP_K", "3")
+    clean_analysis_env.setenv("ANALYSIS_MIN_SIMILARITY", "0.55")
+    clean_analysis_env.setenv("ANALYSIS_MAX_REQUIREMENTS_PER_CALL", "4")
+    clean_analysis_env.setenv("ANALYSIS_MAX_LLM_CALLS", "2")
+
+    settings = Settings()
+
+    assert settings.analysis_top_k == 3
+    assert settings.analysis_min_similarity == 0.55
+    assert settings.analysis_max_requirements_per_call == 4
+    assert settings.analysis_max_llm_calls == 2
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("ANALYSIS_MIN_SIMILARITY", "0"),
+        ("ANALYSIS_MIN_SIMILARITY", "1"),
+        ("ANALYSIS_TOP_K", "1"),
+        ("ANALYSIS_TOP_K", "20"),
+        ("ANALYSIS_MAX_REQUIREMENTS_PER_CALL", "50"),
+        ("ANALYSIS_MAX_LLM_CALLS", "100"),
+    ],
+)
+def test_analysis_boundaries_are_accepted(
+    clean_analysis_env: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    clean_analysis_env.setenv(name, value)
+
+    Settings()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("ANALYSIS_MIN_SIMILARITY", "1.5"),
+        ("ANALYSIS_MIN_SIMILARITY", "-0.1"),
+        ("ANALYSIS_MIN_SIMILARITY", "nan"),
+        ("ANALYSIS_MIN_SIMILARITY", "abc"),
+        ("ANALYSIS_TOP_K", "0"),
+        ("ANALYSIS_TOP_K", "21"),
+        ("ANALYSIS_MAX_REQUIREMENTS_PER_CALL", "0"),
+        ("ANALYSIS_MAX_REQUIREMENTS_PER_CALL", "51"),
+        ("ANALYSIS_MAX_LLM_CALLS", "0"),
+        ("ANALYSIS_MAX_LLM_CALLS", "101"),
+        ("ANALYSIS_MAX_LLM_CALLS", "many"),
+    ],
+)
+def test_invalid_analysis_setting_fails_naming_the_setting(
+    clean_analysis_env: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    clean_analysis_env.setenv(name, value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    assert name.lower() in str(exc_info.value).lower()
+
+
+def test_env_example_lists_the_analysis_settings_with_their_defaults() -> None:
+    example = (Path(__file__).resolve().parents[2] / ".env.example").read_text()
+
+    assert "\nANALYSIS_TOP_K=5\n" in example
+    assert "\nANALYSIS_MIN_SIMILARITY=0.4\n" in example
+    assert "\nANALYSIS_MAX_REQUIREMENTS_PER_CALL=8\n" in example
+    assert "\nANALYSIS_MAX_LLM_CALLS=10\n" in example
+    assert "depends on the embedding model" in example

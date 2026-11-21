@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,10 +12,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
 from app.ai.extraction.models import ExtractionResult
+from app.ai.matching.models import ChunkInput
 from app.ai.parsing.models import ParsingIssue
 from app.ai.pipeline import ProcessedResume
 from app.resumes.models import Resume, ResumeChunk
 from app.resumes.schemas import ResumeDetail, ResumeError, ResumeMetadata, ResumeSummary
+
+
+@dataclass(frozen=True)
+class StoredChunks:
+    """A resume's chunks with their vectors and the embedding models that made them."""
+
+    chunks: list[ChunkInput]
+    embedding_models: set[str]
 
 
 def _values(resume: ResumeDetail) -> dict[str, Any]:
@@ -188,6 +198,34 @@ class ResumeRepository:
         count = len(result.all())
         await self._session.commit()
         return count
+
+    async def get_chunks(self, resume_id: uuid.UUID) -> StoredChunks:
+        """The chunks of a resume in resume order, with their vectors. Empty for an unknown id."""
+        rows = (
+            (
+                await self._session.execute(
+                    select(ResumeChunk)
+                    .where(ResumeChunk.resume_id == resume_id)
+                    .order_by(ResumeChunk.position)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        chunks = [
+            ChunkInput.model_validate(
+                {
+                    "id": row.id,
+                    "section": row.section,
+                    "experience_id": row.experience_id,
+                    "position": row.position,
+                    "text": row.text,
+                    "embedding": [float(x) for x in row.embedding],
+                }
+            )
+            for row in rows
+        ]
+        return StoredChunks(chunks=chunks, embedding_models={row.embedding_model for row in rows})
 
     async def chunk_embedding_dimension(self) -> int | None:
         """The size of the `resume_chunk.embedding` column, or None if the table does not exist."""
