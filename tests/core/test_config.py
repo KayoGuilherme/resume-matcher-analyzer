@@ -312,3 +312,150 @@ def test_env_example_lists_the_analysis_settings_with_their_defaults() -> None:
     assert "\nANALYSIS_MAX_REQUIREMENTS_PER_CALL=8\n" in example
     assert "\nANALYSIS_MAX_LLM_CALLS=10\n" in example
     assert "depends on the embedding model" in example
+
+
+_REPORT_VARIABLES = [
+    "SCORE_WEIGHT_MUST_HAVE",
+    "SCORE_WEIGHT_NICE_TO_HAVE",
+    "SCORE_WEIGHT_KEYWORDS",
+    "SCORE_PARTIAL_CREDIT",
+    "SCORE_PENALTY_CRITICAL",
+    "SCORE_PENALTY_WARNING",
+    "SCORE_PENALTY_INFO",
+    "SCORE_PASS_THRESHOLD",
+    "SCORE_BORDERLINE_THRESHOLD",
+    "SCREENER_RUNS",
+    "REPORT_MAX_SUGGESTIONS",
+]
+
+
+@pytest.fixture
+def clean_report_env(clean_ai_env: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    for name in _REPORT_VARIABLES:
+        clean_ai_env.delenv(name, raising=False)
+    return clean_ai_env
+
+
+def test_report_settings_defaults(clean_report_env: pytest.MonkeyPatch) -> None:
+    settings = Settings()
+
+    assert settings.score_weight_must_have == 0.6
+    assert settings.score_weight_nice_to_have == 0.15
+    assert settings.score_weight_keywords == 0.25
+    assert settings.score_partial_credit == 0.5
+    assert settings.score_penalty_critical == 40
+    assert settings.score_penalty_warning == 5
+    assert settings.score_penalty_info == 1
+    assert settings.score_pass_threshold == 70
+    assert settings.score_borderline_threshold == 50
+    assert settings.screener_runs == 3
+    assert settings.report_max_suggestions == 8
+
+
+def test_report_settings_can_be_overridden(clean_report_env: pytest.MonkeyPatch) -> None:
+    clean_report_env.setenv("SCORE_PASS_THRESHOLD", "80")
+    clean_report_env.setenv("SCREENER_RUNS", "5")
+    clean_report_env.setenv("REPORT_MAX_SUGGESTIONS", "0")
+
+    settings = Settings()
+
+    assert settings.score_pass_threshold == 80
+    assert settings.screener_runs == 5
+    assert settings.report_max_suggestions == 0
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("SCREENER_RUNS", "1"),
+        ("SCREENER_RUNS", "10"),
+        ("REPORT_MAX_SUGGESTIONS", "0"),
+        ("REPORT_MAX_SUGGESTIONS", "30"),
+        ("SCORE_PARTIAL_CREDIT", "0"),
+        ("SCORE_PARTIAL_CREDIT", "1"),
+        ("SCORE_PENALTY_CRITICAL", "100"),
+        ("SCORE_WEIGHT_NICE_TO_HAVE", "0"),
+    ],
+)
+def test_report_boundaries_are_accepted(
+    clean_report_env: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    clean_report_env.setenv(name, value)
+
+    Settings()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("SCREENER_RUNS", "0"),
+        ("SCREENER_RUNS", "11"),
+        ("SCREENER_RUNS", "often"),
+        ("REPORT_MAX_SUGGESTIONS", "-1"),
+        ("REPORT_MAX_SUGGESTIONS", "31"),
+        ("SCORE_PARTIAL_CREDIT", "1.5"),
+        ("SCORE_WEIGHT_KEYWORDS", "heavy"),
+        ("SCORE_WEIGHT_MUST_HAVE", "nan"),
+        ("SCORE_WEIGHT_NICE_TO_HAVE", "-0.1"),
+        ("SCORE_PENALTY_WARNING", "101"),
+        ("SCORE_PASS_THRESHOLD", "101"),
+        ("SCORE_BORDERLINE_THRESHOLD", "-1"),
+    ],
+)
+def test_invalid_report_setting_fails_naming_the_setting(
+    clean_report_env: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    clean_report_env.setenv(name, value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    assert name.lower() in str(exc_info.value).lower()
+
+
+def test_all_weights_zero_fails_naming_the_weights(
+    clean_report_env: pytest.MonkeyPatch,
+) -> None:
+    for name in ("SCORE_WEIGHT_MUST_HAVE", "SCORE_WEIGHT_NICE_TO_HAVE", "SCORE_WEIGHT_KEYWORDS"):
+        clean_report_env.setenv(name, "0")
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    message = str(exc_info.value)
+    assert "SCORE_WEIGHT_MUST_HAVE" in message and "SCORE_WEIGHT_KEYWORDS" in message
+
+
+@pytest.mark.parametrize(("borderline", "pass_"), [("80", "70"), ("70", "70")])
+def test_thresholds_in_the_wrong_order_fail_naming_the_borderline(
+    clean_report_env: pytest.MonkeyPatch, borderline: str, pass_: str
+) -> None:
+    clean_report_env.setenv("SCORE_BORDERLINE_THRESHOLD", borderline)
+    clean_report_env.setenv("SCORE_PASS_THRESHOLD", pass_)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+
+    assert "SCORE_BORDERLINE_THRESHOLD" in str(exc_info.value)
+
+
+def test_env_example_lists_the_report_settings_with_their_defaults() -> None:
+    example = (Path(__file__).resolve().parents[2] / ".env.example").read_text()
+    defaults = {
+        "SCORE_WEIGHT_MUST_HAVE": "0.6",
+        "SCORE_WEIGHT_NICE_TO_HAVE": "0.15",
+        "SCORE_WEIGHT_KEYWORDS": "0.25",
+        "SCORE_PARTIAL_CREDIT": "0.5",
+        "SCORE_PENALTY_CRITICAL": "40",
+        "SCORE_PENALTY_WARNING": "5",
+        "SCORE_PENALTY_INFO": "1",
+        "SCORE_PASS_THRESHOLD": "70",
+        "SCORE_BORDERLINE_THRESHOLD": "50",
+        "SCREENER_RUNS": "3",
+        "REPORT_MAX_SUGGESTIONS": "8",
+    }
+
+    assert set(defaults) == set(_REPORT_VARIABLES)
+    for name, value in defaults.items():
+        assert f"\n{name}={value}\n" in example
+    assert "relative" in example and "0-100" in example

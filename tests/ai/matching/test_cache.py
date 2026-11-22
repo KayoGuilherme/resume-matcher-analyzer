@@ -5,12 +5,16 @@ import pytest
 
 from app.ai.matching.cache import cache_key, inputs_fingerprint
 from app.ai.matching.models import AnalysisSettings
+from app.ai.matching.report_models import ReportSettings
 
 RESUME_ID = uuid.UUID(int=1)
 JOB_ID = uuid.UUID(int=2)
 SETTINGS = AnalysisSettings(
     top_k=5, min_similarity=0.4, max_requirements_per_call=8, max_llm_calls=10
 )
+
+
+REPORT = ReportSettings(screener_runs=3, max_suggestions=8)
 
 
 def _fingerprint(**overrides: Any) -> str:
@@ -34,6 +38,9 @@ def _key(**overrides: Any) -> str:
         "llm_provider": "openai",
         "llm_model": "m1",
         "settings": SETTINGS,
+        "screener_prompt": "screener:1",
+        "suggestions_prompt": "rewrite_suggestions:1",
+        "report_settings": REPORT,
         "fingerprint": _fingerprint(),
     }
     values.update(overrides)
@@ -64,6 +71,12 @@ def test_the_key_is_64_hex_characters() -> None:
         {"settings": SETTINGS.model_copy(update={"min_similarity": 0.5})},
         {"settings": SETTINGS.model_copy(update={"max_requirements_per_call": 7})},
         {"settings": SETTINGS.model_copy(update={"max_llm_calls": 9})},
+        {"screener_prompt": "screener:2"},
+        {"screener_prompt": "other:1"},
+        {"suggestions_prompt": "rewrite_suggestions:2"},
+        {"suggestions_prompt": "other:1"},
+        {"report_settings": REPORT.model_copy(update={"screener_runs": 5})},
+        {"report_settings": REPORT.model_copy(update={"max_suggestions": 0})},
     ],
 )
 def test_each_of_these_changes_the_key(change: dict[str, Any]) -> None:
@@ -94,3 +107,9 @@ def test_the_order_of_dict_fields_does_not_matter() -> None:
 
 def test_the_order_of_list_items_does_matter() -> None:
     assert _fingerprint(profile={"a": [1, 2]}) != _fingerprint(profile={"a": [2, 1]})
+
+
+def test_a_score_setting_is_not_part_of_the_key() -> None:
+    import inspect
+
+    assert not any("score" in name for name in inspect.signature(cache_key).parameters)

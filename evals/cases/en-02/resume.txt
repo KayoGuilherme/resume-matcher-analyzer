@@ -1,0 +1,21 @@
+Priya Raman
+Node.js Developer
+
+Experience
+Software Developer, Lumen Harbor (Feb 2019 - Nov 2024)
+- Built services with Node.js and TypeScript for the customer onboarding flow
+- Designed REST APIs consumed by the web and mobile apps
+- Modeled and tuned PostgreSQL schemas for the reporting service
+- Wrote unit and integration tests with Jest and kept coverage above 85%
+- Managed code in Git with trunk-based development and short-lived branches
+Junior Developer, Pinewood Digital (Jun 2017 - Jan 2019)
+- Maintained JavaScript back-office tools and fixed production bugs
+
+Education
+BSc Information Systems, Westbrook University (2013 - 2017)
+
+Skills
+TypeScript, Node.js, Express, PostgreSQL, Jest, Docker, Git
+
+Languages
+English - Advanced

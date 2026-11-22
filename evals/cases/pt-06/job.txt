@@ -1,0 +1,12 @@
+Desenvolvedor(a) Mobile Flutter - Pulso Apps
+A Pulso Apps desenvolve aplicativos móveis para clientes de varejo e saúde.
+
+Requisitos:
+- 3+ anos de experiência em desenvolvimento mobile
+- Sólidos conhecimentos em Flutter
+- Experiência com Dart
+- Experiência com Firebase
+- Experiência com Git
+
+Diferenciais:
+- Experiência com Figma

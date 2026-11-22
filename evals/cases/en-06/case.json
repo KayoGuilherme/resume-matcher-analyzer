@@ -1,0 +1,26 @@
+{
+  "language": "en",
+  "expected_outcome": "likely_reject",
+  "requirements": [
+    {
+      "match": "python",
+      "verdict": "met"
+    },
+    {
+      "match": "pytorch",
+      "verdict": "in_profile_not_in_resume"
+    },
+    {
+      "match": "sql",
+      "verdict": "missing"
+    },
+    {
+      "match": "mlops",
+      "verdict": "missing"
+    },
+    {
+      "match": "spark",
+      "verdict": "missing"
+    }
+  ]
+}

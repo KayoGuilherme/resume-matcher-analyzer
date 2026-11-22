@@ -24,3 +24,9 @@ def a_result(llm_calls: int = 0) -> AnalysisResult:
             analyzed_at=datetime(2026, 1, 1, tzinfo=UTC),
         ),
     )
+
+
+def a_stored_report():  # type: ignore[no-untyped-def]
+    from tests.ai.matching.report_builders import stored_report
+
+    return stored_report()

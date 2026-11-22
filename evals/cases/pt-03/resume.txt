@@ -1,0 +1,18 @@
+Thiago Ribeiro Faria
+Desenvolvedor Full Stack
+
+Experiência
+Desenvolvedor Full Stack, Estrela Web (mar. 2020 - fev. 2023)
+- Construí telas em React e APIs em Node.js para a plataforma de agendamentos
+- Escrevi consultas e migrações no PostgreSQL
+- Configurei o ambiente local da equipe com Docker
+- Corrigi bugs em JavaScript e acompanhei os chamados dos clientes
+
+Formação
+Bacharelado em Sistemas de Informação, Universidade Litoral (2015 - 2019)
+
+Habilidades
+JavaScript, React, Node.js, PostgreSQL, Docker, Git
+
+Idiomas
+Inglês: Intermediário

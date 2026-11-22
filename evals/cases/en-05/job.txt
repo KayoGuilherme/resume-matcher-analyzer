@@ -1,0 +1,12 @@
+Frontend Engineer - Pixelcraft Studio
+Pixelcraft Studio is hiring a frontend engineer for its design tools.
+
+Requirements:
+- Strong React skills
+- Experience with TypeScript
+- Experience with CSS and responsive design
+- Experience with Git
+- Experience testing with Jest
+
+Nice to have:
+- Experience with Storybook

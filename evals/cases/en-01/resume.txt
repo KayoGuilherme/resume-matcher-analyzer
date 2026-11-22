@@ -1,0 +1,25 @@
+Jordan Whitfield
+Backend Developer
+
+Summary
+Backend developer with six years of experience building and operating Python services.
+
+Experience
+Senior Backend Developer, Fernside Labs (Mar 2020 - Aug 2024)
+- Built REST APIs in Python and FastAPI that served 2M requests per day
+- Migrated the billing service to PostgreSQL and cut query time by 60%
+- Containerized services with Docker and deployed them to Kubernetes
+- Mentored three junior developers and led weekly code reviews
+Backend Developer, Kestrel Works (Jan 2018 - Feb 2020)
+- Maintained Python services and PostgreSQL schemas for the logistics team
+- Wrote integration tests that reduced production incidents
+
+Education
+BSc Computer Science, Eastlake University (2013 - 2017)
+
+Skills
+Python, FastAPI, PostgreSQL, Docker, Kubernetes, Git, Linux
+
+Languages
+English - Fluent
+Portuguese - Native

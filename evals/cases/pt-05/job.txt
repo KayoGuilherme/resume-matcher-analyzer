@@ -1,0 +1,12 @@
+Engenheiro(a) de Dados Sênior - Fluxo Analytics
+A Fluxo Analytics constrói pipelines de dados para grandes varejistas.
+
+Requisitos:
+- Sólidos conhecimentos em Python
+- Experiência com SQL
+- Experiência com Apache Spark
+- Experiência com Apache Airflow
+- Experiência com modelagem de dados em nuvem
+
+Diferenciais:
+- Experiência com dbt

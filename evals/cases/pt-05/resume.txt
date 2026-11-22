@@ -1,0 +1,18 @@
+Gustavo Pereira Lopes
+Analista de Qualidade
+
+Experiência
+Analista de Qualidade, Nova Era Seguros (jan. 2018 - dez. 2024)
+- Executei testes manuais e registrei os defeitos no Jira
+- Escrevi consultas SQL para validar os dados dos relatórios
+- Acompanhei os ciclos de homologação com as áreas de negócio
+- Documentei os casos de teste e treinei novos analistas
+
+Formação
+Tecnologia em Gestão da Tecnologia da Informação, Faculdade Centro Sul (2013 - 2016)
+
+Habilidades
+Testes manuais, Jira, SQL, Excel
+
+Idiomas
+Inglês: Básico

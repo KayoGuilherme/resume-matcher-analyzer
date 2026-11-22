@@ -1,0 +1,20 @@
+Beatriz Nogueira Lima
+Desenvolvedora Python
+
+Experiência
+Desenvolvedora Python, Aurora Soluções (fev. 2020 - dez. 2024)
+- Desenvolvi APIs REST em Python e Django para o portal de clientes
+- Modelei tabelas e otimizei consultas no PostgreSQL
+- Criei imagens Docker e padronizei o ambiente de desenvolvimento da equipe
+- Versionei o código com Git e participei das revisões de código
+Estagiária de Desenvolvimento, Casa do Código Ltda (jan. 2019 - jan. 2020)
+- Corrigi bugs em um sistema legado e escrevi a documentação das rotinas
+
+Formação
+Tecnologia em Análise e Desenvolvimento de Sistemas, Faculdade Horizonte (2016 - 2019)
+
+Habilidades
+Python, Django, PostgreSQL, Docker, Git, REST
+
+Idiomas
+Inglês: Intermediário

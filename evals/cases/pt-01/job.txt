@@ -1,0 +1,13 @@
+Desenvolvedor Backend Java - Marés Digital
+A Marés Digital está contratando uma pessoa desenvolvedora para a plataforma de pagamentos.
+
+Requisitos:
+- 4+ anos de experiência em desenvolvimento backend
+- Sólidos conhecimentos em Java
+- Experiência com Spring Boot
+- Experiência com PostgreSQL
+- Inglês avançado
+
+Diferenciais:
+- Experiência com Docker
+- Experiência com Kafka

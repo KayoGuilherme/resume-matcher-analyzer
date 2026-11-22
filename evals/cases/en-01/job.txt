@@ -1,0 +1,13 @@
+Backend Engineer - Payments Platform
+Orbit Pay is hiring a backend engineer to build the services behind our merchant dashboard.
+
+Requirements:
+- 4+ years of backend development
+- Strong Python skills
+- Experience with PostgreSQL
+- Experience with Docker
+- Fluent English
+
+Nice to have:
+- Experience with Kubernetes
+- Experience with Terraform

@@ -1,0 +1,41 @@
+{
+  "target_role": "Desenvolvedor Full Stack",
+  "seniority": "mid",
+  "total_years_coding": 4,
+  "stacks": [
+    {
+      "name": "React",
+      "years": 3,
+      "level": "working"
+    },
+    {
+      "name": "Node.js",
+      "years": 3,
+      "level": "working"
+    },
+    {
+      "name": "JavaScript",
+      "years": 4,
+      "level": "proficient"
+    },
+    {
+      "name": "PostgreSQL",
+      "years": 3,
+      "level": "working"
+    },
+    {
+      "name": "Docker",
+      "years": 2,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "B1"
+    }
+  ],
+  "notable_facts": [
+    "Criou o fluxo de agendamento usado por 200 clínicas"
+  ]
+}

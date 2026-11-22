@@ -14,7 +14,7 @@ def test_the_model_is_registered_on_the_declarative_base() -> None:
 def test_nullable_columns() -> None:
     nullable = {c.name for c in Analysis.__table__.columns if c.nullable}
 
-    assert nullable == {"error_code", "error_message", "result", "completed_at"}
+    assert nullable == {"error_code", "error_message", "result", "report", "completed_at"}
 
 
 def test_an_analysis_is_deleted_with_its_resume_or_job() -> None:

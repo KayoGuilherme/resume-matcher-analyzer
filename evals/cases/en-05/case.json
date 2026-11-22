@@ -1,0 +1,30 @@
+{
+  "language": "en",
+  "expected_outcome": "likely_reject",
+  "document": {
+    "multi_column": true,
+    "table_count": 2
+  },
+  "requirements": [
+    {
+      "match": "react",
+      "verdict": "missing"
+    },
+    {
+      "match": "typescript",
+      "verdict": "missing"
+    },
+    {
+      "match": "css",
+      "verdict": "missing"
+    },
+    {
+      "match": "git",
+      "verdict": "met"
+    },
+    {
+      "match": "storybook",
+      "verdict": "missing"
+    }
+  ]
+}

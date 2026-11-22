@@ -1,0 +1,13 @@
+Desenvolvedor Full Stack - Rota Digital
+A Rota Digital busca uma pessoa desenvolvedora full stack para a sua plataforma.
+
+Requisitos:
+- 5+ anos de experiência em desenvolvimento web
+- Experiência com React
+- Experiência com Node.js
+- Experiência com TypeScript
+- Experiência com PostgreSQL
+
+Diferenciais:
+- Experiência com AWS
+- Experiência com Docker

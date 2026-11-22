@@ -1,0 +1,18 @@
+Aiden Brooks
+Junior Data Analyst
+
+Experience
+Junior Data Analyst, Clearpath Services (Mar 2023 - Nov 2024)
+- Built weekly reports in Excel and Python for the operations team
+- Cleaned customer data with pandas and flagged duplicate records
+- Completed an online machine learning course and presented a small churn model
+- Documented the reports and answered questions from the managers
+
+Education
+BSc Mathematics, Rowan University (2019 - 2022)
+
+Skills
+Python, pandas, Excel, Jupyter
+
+Languages
+English - Native

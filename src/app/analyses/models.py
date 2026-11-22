@@ -36,5 +36,6 @@ class Analysis(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     cache_key: Mapped[str] = mapped_column(Text)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    report: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

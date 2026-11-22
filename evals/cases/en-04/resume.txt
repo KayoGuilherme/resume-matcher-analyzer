@@ -1,0 +1,19 @@
+Elena Voss
+Data Analyst
+
+Experience
+Data Analyst, Brightwater Retail (Apr 2021 - Sep 2024)
+- Wrote SQL queries and Python scripts that automated the weekly sales reports
+- Cleaned and joined large tables with pandas before loading them into the warehouse
+- Packaged the reporting scripts in Docker so the team could run them anywhere
+- Built dashboards that the sales managers used every Monday
+- Documented every report and trained two new analysts
+
+Education
+BSc Statistics, Marlowe University (2016 - 2020)
+
+Skills
+Python, SQL, pandas, Docker, Excel, Git
+
+Languages
+English - Intermediate

@@ -1,0 +1,13 @@
+Java Developer - Northgate Freight
+Northgate Freight is growing its platform team.
+
+Requirements:
+- 5+ years of professional software development
+- Strong Java skills
+- Experience with Spring Boot
+- Experience with PostgreSQL
+- Experience with Apache Kafka
+
+Nice to have:
+- Experience with Docker
+- Experience with AWS

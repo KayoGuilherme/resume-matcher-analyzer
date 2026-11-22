@@ -1,0 +1,26 @@
+{
+  "language": "pt",
+  "expected_outcome": "likely_pass",
+  "requirements": [
+    {
+      "match": "java",
+      "verdict": "met"
+    },
+    {
+      "match": "spring boot",
+      "verdict": "met"
+    },
+    {
+      "match": "inglês",
+      "verdict": "met"
+    },
+    {
+      "match": "docker",
+      "verdict": "met"
+    },
+    {
+      "match": "kafka",
+      "verdict": "in_profile_not_in_resume"
+    }
+  ]
+}

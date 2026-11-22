@@ -1,0 +1,31 @@
+{
+  "target_role": "Backend Developer",
+  "seniority": "mid",
+  "total_years_coding": 6,
+  "stacks": [
+    {
+      "name": "Java",
+      "years": 6,
+      "level": "proficient"
+    },
+    {
+      "name": "Spring Boot",
+      "years": 5,
+      "level": "working"
+    },
+    {
+      "name": "Git",
+      "years": 6,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "C2"
+    }
+  ],
+  "notable_facts": [
+    "Maintained a claims system used by 300 employees"
+  ]
+}

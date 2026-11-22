@@ -1,0 +1,45 @@
+{
+  "target_role": "Desenvolvedor Backend",
+  "seniority": "senior",
+  "total_years_coding": 8,
+  "stacks": [
+    {
+      "name": "Java",
+      "years": 7,
+      "level": "expert"
+    },
+    {
+      "name": "Spring Boot",
+      "years": 6,
+      "level": "proficient"
+    },
+    {
+      "name": "PostgreSQL",
+      "years": 6,
+      "level": "proficient"
+    },
+    {
+      "name": "Docker",
+      "years": 4,
+      "level": "working"
+    },
+    {
+      "name": "Kafka",
+      "years": 2,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "C1"
+    },
+    {
+      "name": "Portuguese",
+      "level": "native"
+    }
+  ],
+  "notable_facts": [
+    "Migrou um sistema de pagamentos para mensageria com Kafka"
+  ]
+}

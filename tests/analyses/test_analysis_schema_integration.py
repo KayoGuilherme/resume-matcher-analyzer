@@ -129,3 +129,30 @@ async def test_an_analysis_needs_an_existing_resume_and_job(session: AsyncSessio
 
     with pytest.raises(IntegrityError):
         await session.commit()
+
+
+async def test_the_report_column_is_nullable_and_holds_json(session: AsyncSession) -> None:
+    resume, job = await _stored_pair(session)
+    plain = analysis_row(resume.id, job.id, status="processing", cache_key="a")
+    with_report = analysis_row(resume.id, job.id, status="ready", cache_key="b")
+    with_report.report = {"screener": {"decision": "pass"}, "language": "pt"}
+    session.add_all([plain, with_report])
+    await session.commit()
+
+    rows = {row.cache_key: row for row in (await session.execute(select(Analysis))).scalars()}
+
+    assert rows["a"].report is None
+    assert rows["b"].report == {"screener": {"decision": "pass"}, "language": "pt"}
+
+
+async def test_deleting_the_resume_deletes_the_report(session: AsyncSession) -> None:
+    resume, job = await _stored_pair(session)
+    row = analysis_row(resume.id, job.id, status="ready", cache_key="c")
+    row.report = {"language": "en"}
+    session.add(row)
+    await session.commit()
+
+    await session.delete(resume)
+    await session.commit()
+
+    assert (await session.execute(text("SELECT count(*) FROM analysis"))).scalar_one() == 0

@@ -1,0 +1,26 @@
+{
+  "language": "pt",
+  "expected_outcome": "borderline",
+  "requirements": [
+    {
+      "match": "desenvolvimento web",
+      "verdict": "partial"
+    },
+    {
+      "match": "react",
+      "verdict": "met"
+    },
+    {
+      "match": "typescript",
+      "verdict": "missing"
+    },
+    {
+      "match": "aws",
+      "verdict": "missing"
+    },
+    {
+      "match": "docker",
+      "verdict": "met"
+    }
+  ]
+}

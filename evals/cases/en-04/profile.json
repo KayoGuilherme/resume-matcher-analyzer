@@ -1,0 +1,36 @@
+{
+  "target_role": "Data Engineer",
+  "seniority": "mid",
+  "total_years_coding": 5,
+  "stacks": [
+    {
+      "name": "Python",
+      "years": 4,
+      "level": "proficient"
+    },
+    {
+      "name": "SQL",
+      "years": 5,
+      "level": "proficient"
+    },
+    {
+      "name": "Airflow",
+      "years": 2,
+      "level": "working"
+    },
+    {
+      "name": "Docker",
+      "years": 2,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "B1"
+    }
+  ],
+  "notable_facts": [
+    "Scheduled nightly report jobs with Airflow in a side project"
+  ]
+}

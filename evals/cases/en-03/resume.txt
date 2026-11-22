@@ -1,0 +1,19 @@
+Marcus Oyelaran
+Java Developer
+
+Experience
+Java Developer, Tidewater Logistics (Jun 2020 - Dec 2023)
+- Built Spring Boot services for the shipment tracking platform
+- Wrote Java code and JUnit tests for the pricing module
+- Tuned PostgreSQL queries and added indexes that halved report times
+- Packaged services in Docker images used by the whole team
+- Reviewed pull requests and documented the services in the team wiki
+
+Education
+BSc Computer Engineering, Harlow Institute (2015 - 2019)
+
+Skills
+Java, Spring Boot, PostgreSQL, Docker, Maven, Git, JUnit
+
+Languages
+English - Advanced

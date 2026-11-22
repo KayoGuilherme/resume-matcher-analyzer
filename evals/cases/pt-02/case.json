@@ -1,0 +1,22 @@
+{
+  "language": "pt",
+  "expected_outcome": "likely_pass",
+  "requirements": [
+    {
+      "match": "python",
+      "verdict": "met"
+    },
+    {
+      "match": "django",
+      "verdict": "met"
+    },
+    {
+      "match": "docker",
+      "verdict": "met"
+    },
+    {
+      "match": "redis",
+      "verdict": "in_profile_not_in_resume"
+    }
+  ]
+}

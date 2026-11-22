@@ -15,7 +15,7 @@ Backend only: Python 3.12, FastAPI, PostgreSQL + pgvector.
 - Lint + format: `uv run ruff check . --fix && uv run ruff format .`
 - Types: `uv run mypy src`
 - Migrations: `uv run alembic revision --autogenerate -m "msg"` then `uv run alembic upgrade head`
-- Evals: `uv run python -m evals.run`
+- Evals: `uv run python -m evals.run` (run locally against the real providers, never in CI; options `--runs`, `--case`, `--output`; exit 0/1/2)
 - Before saying a task is done, tests, ruff and mypy must all pass.
 
 ## Folder structure (package by feature, not by type)
@@ -32,7 +32,7 @@ src/app/
     service.py     # business logic
     startup.py     # startup checks (embedding dimension, interrupted processing)
   jobs/            # same layout as resumes/: router, schemas, models (job, job_requirements), repository, service, startup
-  analyses/        # same layout: router, schemas, models (analysis), repository, service, startup (gap analysis of a resume against a job)
+  analyses/        # same layout: router, schemas, models (analysis), repository, service, startup (gap analysis of a resume against a job, and its screening report: GET /analyses/{id}/report)
   ai/
     errors.py      # AINotConfiguredError (503 ai_not_configured), shared by both factories
     error_codes.py # processing_error_code: AI-layer errors -> stable processing error codes
@@ -50,12 +50,16 @@ src/app/
     parsing/       # PDF/DOCX -> clean text
     extraction/    # text -> structured Resume (models, verify, experience, resume, chunking)
                    # and Job (job_models, job, priority: must/nice from EN/PT wording)
-    prompts/       # prompts as versioned .md files (resume_extraction, job_extraction, gap_judge; version in the header) + loader.py, never inline strings
+    prompts/       # prompts as versioned .md files (resume_extraction, job_extraction, gap_judge, screener, rewrite_suggestions; version in the header) + loader.py, never inline strings
     pipeline.py    # orchestrates extract -> chunk/requirements -> embed for resumes and jobs (pure, no DB)
     matching/      # gap analysis, pure (no DB, no HTTP): models, errors, text (literal matching), levels (language levels),
-                   # deterministic -> retrieval -> judge -> profile_check (the four steps), ats, messages, cache, engine (orchestrates)
-tests/             # mirrors src/app
-evals/             # dataset of resume/job pairs + runner
+                   # deterministic -> retrieval -> judge -> profile_check (the four steps), ats, messages, cache, engine (orchestrates);
+                   # screening report: report_models, score (deterministic, no LLM), screener (simulated first-pass screener, N runs),
+                   # rewrites + technologies (suggestions and the check that rejects invented technologies/numbers/years),
+                   # actions (prioritized, fixed templates), markdown (safe rendering), report (produce_report at analysis time, build_report at read time)
+tests/             # mirrors src/app (tests/evals/ tests the harness with fakes, never real providers)
+evals/             # run locally, never in CI: cases/<id>/ (resume, job, profile, case.json; 12 synthetic pt/en cases),
+                   # dataset.py, metrics.py (pure), config.py (EVAL_*), runner.py, run.py (`python -m evals.run`)
 alembic/           # migrations
 ```
 

@@ -1,0 +1,26 @@
+{
+  "language": "en",
+  "expected_outcome": "borderline",
+  "requirements": [
+    {
+      "match": "airflow",
+      "verdict": "in_profile_not_in_resume"
+    },
+    {
+      "match": "english",
+      "verdict": "partial"
+    },
+    {
+      "match": "spark",
+      "verdict": "missing"
+    },
+    {
+      "match": "dbt",
+      "verdict": "missing"
+    },
+    {
+      "match": "pandas",
+      "verdict": "met"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "language": "pt",
+  "expected_outcome": "likely_reject",
+  "document": {
+    "multi_column": true
+  },
+  "requirements": [
+    {
+      "match": "python",
+      "verdict": "missing"
+    },
+    {
+      "match": "sql",
+      "verdict": "met"
+    },
+    {
+      "match": "spark",
+      "verdict": "missing"
+    },
+    {
+      "match": "airflow",
+      "verdict": "missing"
+    },
+    {
+      "match": "dbt",
+      "verdict": "missing"
+    }
+  ]
+}

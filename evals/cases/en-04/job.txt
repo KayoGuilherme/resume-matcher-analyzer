@@ -1,0 +1,14 @@
+Data Engineer - Cobalt Analytics
+Cobalt Analytics builds data pipelines for retail customers.
+
+Requirements:
+- Strong Python skills
+- Experience with SQL
+- Experience with Apache Airflow
+- Experience with Docker
+- Fluent English
+
+Nice to have:
+- Experience with Apache Spark
+- Experience with dbt
+- Experience with pandas

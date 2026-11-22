@@ -1,0 +1,26 @@
+{
+  "language": "pt",
+  "expected_outcome": "borderline",
+  "requirements": [
+    {
+      "match": "laravel",
+      "verdict": "met"
+    },
+    {
+      "match": "inglês",
+      "verdict": "partial"
+    },
+    {
+      "match": "elasticsearch",
+      "verdict": "missing"
+    },
+    {
+      "match": "phpunit",
+      "verdict": "missing"
+    },
+    {
+      "match": "redis",
+      "verdict": "in_profile_not_in_resume"
+    }
+  ]
+}

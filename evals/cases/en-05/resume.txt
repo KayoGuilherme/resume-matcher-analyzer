@@ -1,0 +1,18 @@
+Samuel Okafor
+Backend Developer
+
+Experience
+Backend Developer, Greenfield Insurance (Jan 2019 - Dec 2024)
+- Maintained Java and Spring Boot services for the claims system
+- Wrote batch jobs that processed claim files overnight
+- Managed releases with Git and Jenkins pipelines
+- Fixed production incidents and wrote the post-incident reports
+
+Education
+BSc Computer Science, Ashford University (2014 - 2018)
+
+Skills
+Java, Spring Boot, Oracle, Jenkins, Git, JUnit
+
+Languages
+English - Fluent
