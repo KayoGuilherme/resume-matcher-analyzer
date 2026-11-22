@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import text
 
@@ -17,6 +18,11 @@ from app.ai.extraction.job_models import ExtractedJob
 from app.ai.extraction.models import ExtractedResume
 from app.ai.llm import get_llm_client
 from app.ai.matching.models import JudgeAnswer, JudgeBatch
+from app.ai.matching.report_models import (
+    ScreenerAnswer,
+    SuggestionAnswer,
+    SuggestionBatch,
+)
 from app.analyses.repository import AnalysisRepository
 from app.analyses.router import get_analysis_background_service_factory
 from app.analyses.service import AnalysisService
@@ -49,14 +55,16 @@ PROFILE = {
 
 
 class RoutedLLM:
-    """Answers each kind of request: resume extraction, job extraction and the judge (`missing`
-    for every requirement it is asked about)."""
+    """Answers each kind of request: resume extraction, job extraction, the judge (`missing` for
+    every requirement it is asked about), the screener (`borderline`) and the suggestions (one
+    honest, one that invents a technology and one that invents a number)."""
 
     provider = "fake"
     model = "fake-model"
 
     def __init__(self) -> None:
         self.judge_calls = 0
+        self.report_calls = 0
         self._job_answers = list(ENGLISH.answers)
 
     async def generate_structured[T: BaseModel](
@@ -73,6 +81,14 @@ class RoutedLLM:
                 self._job_answers.pop(0) if len(self._job_answers) > 1 else self._job_answers[0]
             )
             return schema.model_validate(answer.model_dump())
+        if schema is ScreenerAnswer:
+            self.report_calls += 1
+            return schema.model_validate(
+                ScreenerAnswer(decision="borderline", reasons=["Shows part of it."]).model_dump()
+            )
+        if schema is SuggestionBatch:
+            self.report_calls += 1
+            return schema.model_validate(_scripted_suggestions().model_dump())
         self.judge_calls += 1
         import re
 
@@ -82,6 +98,24 @@ class RoutedLLM:
             for n in numbers
         ]
         return schema.model_validate(JudgeBatch(answers=answers).model_dump())
+
+
+HONEST = "Containerized backend services with Docker for 3 years"
+INVENTED_TECHNOLOGY = "Ran Terraform-managed Kafka clusters for the payments team"
+INVENTED_NUMBER = "Cut Python latency by 77% across the platform"
+
+
+def _scripted_suggestions() -> SuggestionBatch:
+    def answer(target: int, number: int, text: str) -> SuggestionAnswer:
+        return SuggestionAnswer(target=target, source="profile", number=number, text=text)
+
+    return SuggestionBatch(
+        suggestions=[
+            answer(1, 1, HONEST),
+            answer(2, 2, INVENTED_TECHNOLOGY),
+            answer(2, 3, INVENTED_NUMBER),  # the second try for the same target
+        ]
+    )
 
 
 @pytest.fixture
@@ -109,11 +143,11 @@ async def settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AsyncGene
     get_settings.cache_clear()
 
 
-async def test_the_whole_flow_from_the_profile_to_the_cached_analysis(
-    settings: Settings,
-) -> None:
+@asynccontextmanager
+async def _api(
+    settings: Settings, llm: RoutedLLM
+) -> AsyncIterator[tuple[httpx.AsyncClient, FastAPI]]:
     app = create_app()
-    llm = RoutedLLM()
 
     @asynccontextmanager
     async def resume_factory() -> AsyncIterator[ResumeService]:
@@ -142,10 +176,17 @@ async def test_the_whole_flow_from_the_profile_to_the_cached_analysis(
     app.dependency_overrides[get_background_service_factory] = lambda: resume_factory
     app.dependency_overrides[get_job_background_service_factory] = lambda: job_factory
     app.dependency_overrides[get_analysis_background_service_factory] = lambda: analysis_factory
-
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
+        yield client, app
+
+
+async def test_the_whole_flow_from_the_profile_to_the_cached_analysis(
+    settings: Settings,
+) -> None:
+    llm = RoutedLLM()
+    async with _api(settings, llm) as (client, _):
         before_profile = await client.post(
             "/analyses", json={"resume_id": str(uuid.uuid4()), "job_id": str(uuid.uuid4())}
         )
@@ -195,3 +236,99 @@ async def test_the_whole_flow_from_the_profile_to_the_cached_analysis(
     assert calls_after_cache == calls
     assert fresh.status_code == 202 and fresh.json()["id"] != started.json()["id"]
     assert [response.status_code for response in gone] == [404, 404]
+
+
+REPORT_PROFILE = {
+    "target_role": "Backend Developer",
+    "seniority": "senior",
+    "total_years_coding": 8,
+    "stacks": [
+        {"name": "Docker", "years": 3, "level": "working"},
+        {"name": "Kubernetes", "years": 2, "level": "working"},
+        {"name": "Python", "years": 6, "level": "expert"},
+    ],
+    "languages": [{"name": "English", "level": "C1"}],
+    "notable_facts": ["Built the payments platform of a fintech"],
+}
+
+
+async def test_the_whole_flow_from_the_profile_to_the_report(settings: Settings) -> None:
+    llm = RoutedLLM()
+
+    async with _api(settings, llm) as (client, app):
+        await client.put("/profile", json=REPORT_PROFILE)
+        resume = (
+            await client.post(
+                "/resumes", files={"file": ("cv.pdf", documents.clean_pdf(), "application/pdf")}
+            )
+        ).json()
+        job = (
+            await client.post("/jobs", json={"title": "Backend", "description": ENGLISH.text})
+        ).json()
+        await client.post(f"/resumes/{resume['id']}/process")
+        await client.post(f"/jobs/{job['id']}/process")
+        body = {"resume_id": resume["id"], "job_id": job["id"]}
+
+        started = await client.post("/analyses", json=body)
+        analysis_id = started.json()["id"]
+        analysis = (await client.get(f"/analyses/{analysis_id}")).json()
+        report = await client.get(f"/analyses/{analysis_id}/report")
+        markdown = await client.get(f"/analyses/{analysis_id}/report?format=markdown")
+        calls = llm.report_calls
+
+        # the report calls no provider, and the score follows the settings in force
+        await client.get(f"/analyses/{analysis_id}/report")
+        reads_cost_nothing = llm.report_calls == calls
+        app.dependency_overrides[get_settings] = lambda: settings.model_copy(
+            update={"score_pass_threshold": 1, "score_borderline_threshold": 0.5}
+        )
+        lenient = (await client.get(f"/analyses/{analysis_id}/report")).json()
+        app.dependency_overrides[get_settings] = lambda: settings.model_copy(
+            update={"screener_runs": 5}
+        )
+        other_runs = await client.post("/analyses", json=body)
+        app.dependency_overrides[get_settings] = lambda: settings
+        same = await client.post("/analyses", json=body)
+
+    assert analysis["status"] == "ready", analysis["error"]
+    assert report.status_code == 200
+    data = report.json()
+    assert data["disclaimer"] and "real ATS" in data["disclaimer"]
+    assert data["score"]["value"] is not None and data["score"]["outcome"] in {
+        "likely_pass", "borderline", "likely_reject",
+    }  # fmt: skip
+    assert data["screener"]["decision"] == "borderline" and data["screener"]["consistency"] == 1.0
+    assert len(data["screener"]["runs"]) == 3
+    kinds = {action["kind"] for action in data["actions"]}
+    assert {"add_from_profile", "real_gap"} <= kinds
+    assert [a["priority"] for a in data["actions"]] == list(range(1, len(data["actions"]) + 1))
+
+    # the honest suggestion is there, the two that invent facts are not
+    texts = [s["text"] for s in data["suggestions"]]
+    assert texts == [HONEST]
+    suggestion = data["suggestions"][0]
+    assert suggestion["original"] is None and suggestion["based_on"]["source"] == "profile"
+    warnings = {w["code"]: w["count"] for w in data["warnings"]}
+    assert warnings["suggestion_rejected_unsupported_technology"] >= 1
+    assert warnings["suggestion_rejected_unsupported_number"] >= 1
+    for secret in (INVENTED_TECHNOLOGY, INVENTED_NUMBER, "Kafka", "77%"):
+        assert secret not in report.text and secret not in markdown.text
+
+    assert markdown.status_code == 200 and "text/markdown" in markdown.headers["content-type"]
+    assert markdown.text.index("simulation") < markdown.text.index("## Score")
+    assert HONEST in markdown.text
+
+    # nothing invented is in the stored row either
+    async with get_sessionmaker(settings)() as session:
+        stored = (
+            await session.execute(
+                text("SELECT report::text FROM analysis WHERE id = :id"), {"id": analysis_id}
+            )
+        ).scalar_one()
+    assert "Kafka" not in stored and "77%" not in stored and HONEST in stored
+
+    assert reads_cost_nothing
+    assert lenient["score"]["outcome"] == "likely_pass"
+    assert lenient["score"]["value"] == data["score"]["value"]
+    assert other_runs.status_code == 202 and other_runs.json()["id"] != analysis_id
+    assert same.status_code == 200 and same.json()["id"] == analysis_id

@@ -1,9 +1,11 @@
 """The identity of an analysis: what has to be equal for an earlier result to be reused.
 
 The key holds the resume and the job, the judge prompt version, the LLM and the analysis settings
-(as the brief asks) and a fingerprint of the stored processing results and the profile, so a
-profile that was edited or a resume or job that was processed again is never answered with an
-older result. Pure functions.
+(as the brief asks), the screener and suggestion prompts with their versions and the report
+settings (screener runs, suggestions cap), and a fingerprint of the stored processing results and
+the profile, so a profile that was edited or a resume or job that was processed again is never
+answered with an older result. The `SCORE_*` settings are not part of it: the score is computed
+when the report is read. Pure functions.
 """
 
 import hashlib
@@ -12,6 +14,7 @@ import uuid
 from typing import Any
 
 from app.ai.matching.models import AnalysisSettings
+from app.ai.matching.report_models import ReportSettings
 
 
 def _digest(value: Any) -> str:
@@ -49,6 +52,9 @@ def cache_key(
     llm_provider: str,
     llm_model: str,
     settings: AnalysisSettings,
+    screener_prompt: str,
+    suggestions_prompt: str,
+    report_settings: ReportSettings,
     fingerprint: str,
 ) -> str:
     return _digest(
@@ -58,6 +64,11 @@ def cache_key(
             "prompt": f"{prompt_name}:{prompt_version}",
             "llm": f"{llm_provider}/{llm_model}",
             "settings": settings.model_dump(),
+            "report": {
+                "screener_prompt": screener_prompt,
+                "suggestions_prompt": suggestions_prompt,
+                "settings": report_settings.model_dump(),
+            },
             "inputs": fingerprint,
         }
     )

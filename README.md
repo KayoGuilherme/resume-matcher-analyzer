@@ -256,6 +256,23 @@ The gap analysis (`POST /analyses`) reads four settings. They are listed in `.en
 | `ANALYSIS_MAX_REQUIREMENTS_PER_CALL` | 8 | Requirements sent to the LLM in one call (1-50) |
 | `ANALYSIS_MAX_LLM_CALLS` | 10 | LLM calls one analysis may make (1-100) |
 
+### Score and report settings
+
+The report (`GET /analyses/{id}/report`) reads eleven settings, also listed in `.env.example`.
+The `SCORE_*` ones are applied when a report is read, so changing them does not need a new analysis.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SCORE_WEIGHT_MUST_HAVE` | 0.6 | Weight of the must-have coverage (0-1, relative: scaled to add up to one) |
+| `SCORE_WEIGHT_NICE_TO_HAVE` | 0.15 | Weight of the nice-to-have coverage (0-1) |
+| `SCORE_WEIGHT_KEYWORDS` | 0.25 | Weight of the ATS keyword coverage (0-1); the three cannot all be 0 |
+| `SCORE_PARTIAL_CREDIT` | 0.5 | Credit of a `partial` verdict (0-1) |
+| `SCORE_PENALTY_CRITICAL` / `_WARNING` / `_INFO` | 40 / 5 / 1 | Points taken off per parsing issue of that severity (0-100) |
+| `SCORE_PASS_THRESHOLD` | 70 | Score at or above which the outcome is `likely_pass` (0-100) |
+| `SCORE_BORDERLINE_THRESHOLD` | 50 | Score at or above which it is `borderline`; must be below the pass threshold |
+| `SCREENER_RUNS` | 3 | Times the simulated screener runs (1-10) |
+| `REPORT_MAX_SUGGESTIONS` | 8 | Most rewrite suggestions asked for (0-30; 0 asks for none) |
+
 ## Resume processing API
 
 Turn a stored resume into structured data and vectors (needs a configured LLM and embeddings).
@@ -399,12 +416,13 @@ own values.
 
 `ats_coverage` lists which of the job's ATS keywords appear literally in the resume text (`found`,
 with the text as written) and which do not (`missing`). It is a literal check, like an ATS, and
-only the resume counts. There is no score.
+only the resume counts. The score is in the report (see "Analysis report").
 
 **Cache.** Asking again with the same inputs returns the stored analysis (HTTP 200) without
 calling the LLM; while one is running you get it back with 202. A new analysis starts when anything
-it reads changes: the profile, the resume or the job processed again, the judge prompt version, the
-LLM provider or model, or an `ANALYSIS_*` setting. A `failed` analysis is never reused.
+it reads changes: the profile, the resume or the job processed again, the judge, screener or
+suggestion prompt version, the LLM provider or model, an `ANALYSIS_*` setting, `SCREENER_RUNS` or
+`REPORT_MAX_SUGGESTIONS`. A `failed` analysis is never reused.
 
 **Limits.** `ANALYSIS_MAX_REQUIREMENTS_PER_CALL` and `ANALYSIS_MAX_LLM_CALLS` (see "Analysis
 settings") bound the tokens one analysis can spend. If the requirements that must be judged need
@@ -426,6 +444,168 @@ reported differences:
 ```bash
 uv run --env-file .env pytest -m real_provider tests/real_provider/test_gap_analysis.py -rs -W default
 ```
+
+## Analysis report
+
+Will a first-step AI screener probably let this resume through, and what should you change first?
+`GET /analyses/{id}/report` answers from a `ready` analysis. The analysis run now also runs the
+simulated screener and asks for rewrite suggestions, so an analysis becomes `ready` only when its
+report is stored (and takes `SCREENER_RUNS` + at most one more LLM call than before).
+
+```bash
+curl localhost:8000/analyses/<id>/report                      # JSON
+curl 'localhost:8000/analyses/<id>/report?format=markdown'    # Markdown (text/markdown)
+```
+
+The report always starts with a disclaimer: it is a **simulation**. A language model applies a
+generic rubric to your resume text; it cannot see, and does not reproduce, the real ATS or
+screening process of the company. Treat it as a hint, not a prediction.
+
+The JSON has the `disclaimer`, the `score` (with its breakdown), `score_settings`, the `screener`,
+`ats_coverage`, the prioritized `actions`, the accepted `suggestions`, `warnings` and
+`provenance`. The Markdown has the same facts, in this order: disclaimer, score, screener, actions,
+suggestions, keywords, warnings. A shortened example:
+
+```markdown
+# Screening report
+
+> This is a simulation: a language model applies a generic rubric to your resume text. ...
+
+## Score
+
+**67.5 / 100** - Outcome: `borderline` (pass >= 70, borderline >= 50)
+
+## Simulated screener
+
+Decision: `borderline` - Consistency: 0.67 (3) - Agrees with the score
+
+## What to do
+
+### Fix format and parsing issues
+
+1. No 'Skills' section heading was found. ...
+
+### Add what your profile proves
+
+2. [must_have] Your profile shows this, but your resume does not: "Experience with Kubernetes". Add
+   it to your resume with a bullet that states it, as long as it is true. (S1)
+
+### Real gaps (rewriting cannot fix these)
+
+3. [nice_to_have] Neither your resume nor your profile shows: "Experience with Rust". Rewriting
+   cannot fix this: it is a real gap in skills, experience or evidence. Do not add it to your resume
+   unless it is true. ...
+```
+
+**Score.** `score = 100 * sum(weight * coverage) / sum(weights) - penalties`, clamped to 0-100.
+The coverages are the must-haves, the nice-to-haves and the ATS keywords found in the resume. A
+requirement earns 1 when `met`, `SCORE_PARTIAL_CREDIT` when `partial`, and 0 when `missing` or
+`in_profile_not_in_resume` (a screener reads only the resume, so what only your profile proves earns
+nothing: the actions tell you to add it). A coverage with nothing to measure (a job with no
+nice-to-haves) is left out and the other weights are scaled up. Each parsing issue of the resume
+takes off `SCORE_PENALTY_CRITICAL`, `_WARNING` or `_INFO` points. The outcome is `likely_pass` at or
+above `SCORE_PASS_THRESHOLD`, `borderline` at or above `SCORE_BORDERLINE_THRESHOLD`, else
+`likely_reject`. The breakdown lists every coverage, weight, penalty and threshold, so you can
+recompute it. The score is computed when the report is read, from the stored analysis and the
+*current* `SCORE_*` settings: change them in `.env`, restart, and read the same report again, with no
+LLM calls. The defaults are a starting point; use the evals below to tune them.
+
+**Screener.** An LLM with a rubric reads the resume text and the job's requirements and keywords
+and decides `pass`, `borderline` or `reject` with short reasons, `SCREENER_RUNS` times (default 3).
+It never sees your profile, the verdicts or the score. The report gives the majority decision (a
+tie goes to the less favorable one), the consistency (the share of runs that agree, e.g. 0.67),
+every run, and whether the decision matches the score's outcome. It uses the configured LLM
+client, whose temperature is `LLM_TEMPERATURE` (0 by default); at temperature 0 many providers answer
+almost identically each time, so a consistency of 1.0 can mean "deterministic provider" rather
+than "robust judgment". The screener only sees the requirements extracted from the posting, not
+the posting itself.
+
+**Actions**, in this order, with a `priority` number that follows the list:
+
+1. `fix_format`: parsing issues of the resume (columns, tables, header or footer text, missing
+   section headings, ...), most severe first.
+2. `add_from_profile`: things your profile proves and your resume omits (a requirement, or an ATS
+   keyword that is one of your profile's stacks), with the ids of the suggestions that address them.
+3. `real_gap`: what neither the resume nor the profile shows. Said plainly: rewriting cannot fix it
+   and you must not claim it unless it is true.
+
+The texts are fixed templates (English, or Portuguese for a Portuguese job), not LLM output.
+
+**Rewrite suggestions.** For the requirements the profile proves (`in_profile_not_in_resume`), the
+`partial` ones and the profile-proven missing keywords (at most `REPORT_MAX_SUGGESTIONS`, in one
+LLM call), the LLM proposes a reworded or a new bullet. It points at its source by number and the
+program resolves it: each suggestion carries `original` (the resume bullet, verbatim, or null for a
+new bullet) and `based_on` (that bullet, or the profile fact). Then a deterministic check rejects any
+suggestion that adds a technology, a number or a year that is in neither the resume nor the profile;
+rejected text is never shown or stored, only counted in `warnings` as
+`suggestion_rejected_<reason>`. Known limits of the check: a lowercase technology name that no list
+knows and that has no special shape, names of one or two letters (`go`, `c`, `r`), and a number that
+is in the resume but used for a different claim can pass; it errs on the side of rejecting. Always
+read a suggestion before you use it.
+
+Errors: `404` `analysis_not_found`; `409` `report_not_ready` (still processing), `analysis_failed`
+(read the analysis for its error); `404` `report_not_available` (an analysis made before reports
+existed: request it again); `422` for a `format` other than `json` or `markdown`. If the screener or
+the suggestion call fails, the analysis fails with the usual codes (`llm_unavailable`, ...) and a
+new request tries again. The report's LLM calls are not counted in `ANALYSIS_MAX_LLM_CALLS`
+(that limit is the judge's); they are bounded by `SCREENER_RUNS` and one suggestion call and are
+listed in `provenance`.
+
+## Evals
+
+The evals measure, on 12 synthetic cases (6 Portuguese, 6 English, in `evals/cases/`), whether the
+real pipeline gets the requirement verdicts and the outcome right, never invents evidence and
+answers consistently. They run **locally** against the providers you configure; they are not in CI
+and not in `uv run pytest`.
+
+```bash
+uv run --env-file .env python -m evals.run                    # all cases, EVAL_RUNS runs each
+uv run --env-file .env python -m evals.run --case en-01 --runs 1
+uv run --env-file .env python -m evals.run --output results.json   # also write the numbers
+```
+
+It needs `LLM_*` and `EMBEDDING_*` (see "AI providers"); it never connects to a database, so
+`DATABASE_URL` is not needed. **It spends tokens and sends the synthetic resumes and jobs to the
+configured provider** (with a hosted provider, to that company; use a local server to keep them
+local). Per case it processes the resume and the job once, then repeats the analysis, the
+screener, the suggestions and the score `EVAL_RUNS` times.
+
+| Metric | What it is | Threshold |
+|---|---|---|
+| verdict accuracy | expected requirements whose verdict matches | `EVAL_MIN_VERDICT_ACCURACY` (0.8) |
+| outcome accuracy | case runs whose score outcome matches | `EVAL_MIN_OUTCOME_ACCURACY` (0.75) |
+| consistency | per expected requirement, the share of runs that gave its most frequent verdict | `EVAL_MIN_CONSISTENCY` (0.9) |
+| fabricated-evidence rate | resume quotes not in the resume text + accepted suggestions that fail the invention check, re-verified by the runner | always 0 |
+
+It also prints, for information, the outcome consistency, the screener's mean consistency and the
+share of the judge's quotes that the guard dropped. The thresholds are 0-1, read from the
+environment (see `.env.example`), and are a **starting point to tune**, like the `SCORE_*` defaults.
+
+Exit status: `0` every metric meets its threshold; `1` a metric is below its threshold (the output
+names it, with its value and threshold; any fabricated evidence fails); `2` it could not run (bad
+setting, dataset or `--case`, no provider configured, or a case that failed: the metrics of a
+partial run are not trusted). The output has case ids, requirement `match` keys, verdict names and
+numbers, never resume, job or profile text, quotes or suggestions. A line such as
+`pt-03: expected met, got partial` under a case means that expectation was wrong in some run.
+
+**Adding a case.** Create `evals/cases/<en|pt>-NN/` with `resume.txt`, `job.txt`, `profile.json`
+(the body of `PUT /profile`), and `case.json`:
+
+```json
+{
+  "language": "en",
+  "expected_outcome": "borderline",
+  "document": {"multi_column": true},
+  "requirements": [{"match": "kubernetes", "verdict": "in_profile_not_in_resume"}]
+}
+```
+
+`match` is compared, lowercase and without accents, with each extracted requirement's text and
+keywords, and must match exactly one. `document` is optional (page count, columns, tables, images,
+header text): it makes the real quality checks produce the resume's parsing issues. Keep cases
+synthetic: no real person, employer, e-mail address, phone number or URL (a test enforces it).
+Use standard section headings (`Experience`, `Education`, `Skills`, or the Portuguese ones) unless
+the case is about missing headings. Run `uv run pytest tests/evals` to validate the dataset.
 
 ## Repository settings (manual)
 

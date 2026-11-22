@@ -1,0 +1,14 @@
+Node.js Developer - Lumen Harbor Partners
+We are looking for a developer to extend our node services and APIs.
+
+Requirements:
+- Strong TypeScript skills
+- Experience building services with Node.js
+- Experience designing REST APIs
+- Experience with PostgreSQL
+- Experience with Git
+- Experience deploying to AWS
+
+Nice to have:
+- Experience with GraphQL
+- Experience writing tests with Jest

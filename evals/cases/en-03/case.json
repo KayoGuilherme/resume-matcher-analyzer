@@ -1,0 +1,29 @@
+{
+  "language": "en",
+  "expected_outcome": "borderline",
+  "document": {
+    "header_footer_text": true
+  },
+  "requirements": [
+    {
+      "match": "software development",
+      "verdict": "partial"
+    },
+    {
+      "match": "spring boot",
+      "verdict": "met"
+    },
+    {
+      "match": "kafka",
+      "verdict": "in_profile_not_in_resume"
+    },
+    {
+      "match": "docker",
+      "verdict": "met"
+    },
+    {
+      "match": "aws",
+      "verdict": "missing"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "language": "en",
+  "expected_outcome": "likely_pass",
+  "requirements": [
+    {
+      "match": "typescript",
+      "verdict": "met"
+    },
+    {
+      "match": "node.js",
+      "verdict": "met"
+    },
+    {
+      "match": "aws",
+      "verdict": "in_profile_not_in_resume"
+    },
+    {
+      "match": "graphql",
+      "verdict": "missing"
+    },
+    {
+      "match": "jest",
+      "verdict": "met"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+Desenvolvedor(a) PHP - Cascata Comércio
+Estamos ampliando o time responsável pela plataforma de e-commerce.
+
+Requisitos:
+- Sólidos conhecimentos em PHP
+- Experiência com Laravel
+- Experiência com MySQL
+- Experiência com Git
+- Inglês avançado
+- Experiência com Elasticsearch
+- Testes automatizados com PHPUnit
+
+Diferenciais:
+- Experiência com Redis
+- Experiência com Docker

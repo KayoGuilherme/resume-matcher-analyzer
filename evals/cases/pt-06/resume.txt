@@ -1,0 +1,17 @@
+Camila Duarte Santos
+Desenvolvedora Front-end
+
+Experiência
+Desenvolvedora Front-end, Estúdio Brisa (jun. 2023 - dez. 2024)
+- Criei páginas em HTML, CSS e JavaScript para sites institucionais
+- Montei protótipos no Figma e conversei com os clientes sobre os ajustes
+- Versionei o código com Git
+
+Formação
+Tecnologia em Design Digital, Faculdade Aurora (2020 - 2023)
+
+Habilidades
+HTML, CSS, JavaScript, Figma, Git
+
+Idiomas
+Inglês: Básico

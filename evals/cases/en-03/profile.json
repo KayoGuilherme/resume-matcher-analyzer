@@ -1,0 +1,36 @@
+{
+  "target_role": "Java Developer",
+  "seniority": "mid",
+  "total_years_coding": 4,
+  "stacks": [
+    {
+      "name": "Java",
+      "years": 4,
+      "level": "proficient"
+    },
+    {
+      "name": "Spring Boot",
+      "years": 3,
+      "level": "working"
+    },
+    {
+      "name": "PostgreSQL",
+      "years": 3,
+      "level": "working"
+    },
+    {
+      "name": "Kafka",
+      "years": 2,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "C1"
+    }
+  ],
+  "notable_facts": [
+    "Moved a shipment tracking service to event-driven messaging"
+  ]
+}

@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel
 
 from app.ai.matching.models import AnalysisResult, JudgeAnswer, JudgeBatch
+from app.ai.matching.report_models import ScreenerAnswer, StoredReport, SuggestionBatch
 from app.analyses.schemas import AnalysisDetail
 from app.core.processing import ProcessingError
 from app.profile.schemas import ProfileOut
@@ -19,6 +20,7 @@ class FakeAnalysisRepository:
     def __init__(self) -> None:
         self.by_id: dict[uuid.UUID, AnalysisDetail] = {}
         self.keys: dict[uuid.UUID, str] = {}
+        self.reports: dict[uuid.UUID, StoredReport] = {}
         self.interrupted_message: str | None = None
 
     async def get(self, analysis_id: uuid.UUID) -> AnalysisDetail | None:
@@ -40,10 +42,16 @@ class FakeAnalysisRepository:
         self.keys[analysis.id] = cache_key
         return analysis, True
 
-    async def save_result(self, analysis_id: uuid.UUID, result: AnalysisResult) -> bool:
+    async def get_report(self, analysis_id: uuid.UUID) -> StoredReport | None:
+        return self.reports.get(analysis_id)
+
+    async def save_result(
+        self, analysis_id: uuid.UUID, result: AnalysisResult, report: StoredReport
+    ) -> bool:
         analysis = self.by_id.get(analysis_id)
         if analysis is None:
             return False
+        self.reports[analysis_id] = report
         self.by_id[analysis_id] = analysis.model_copy(
             update={"status": "ready", "result": result, "completed_at": datetime.now(UTC)}
         )
@@ -51,6 +59,7 @@ class FakeAnalysisRepository:
 
     async def set_failed(self, analysis_id: uuid.UUID, code: str, message: str) -> None:
         analysis = self.by_id.get(analysis_id)
+        self.reports.pop(analysis_id, None)
         if analysis is not None:
             self.by_id[analysis_id] = analysis.model_copy(
                 update={
@@ -107,12 +116,14 @@ class ConstantEmbeddingClient:
 
 
 class AnswerAllLLM:
-    """A judge that answers `missing` for every requirement it is asked about."""
+    """A judge that answers `missing` for every requirement it is asked about, a screener that
+    answers `borderline` and a suggestion step that proposes nothing."""
 
     def __init__(self, provider: str = "fake", model: str = "fake-model") -> None:
         self._provider = provider
         self._model = model
         self.prompts: list[str] = []
+        self.schemas: list[type[BaseModel]] = []
 
     @property
     def provider(self) -> str:
@@ -126,10 +137,21 @@ class AnswerAllLLM:
     def calls(self) -> int:
         return len(self.prompts)
 
+    @property
+    def judge_calls(self) -> int:
+        return sum(1 for schema in self.schemas if schema is JudgeBatch)
+
     async def generate_structured[T: BaseModel](
         self, prompt: str, schema: type[T], *, system: str | None = None
     ) -> T:
         self.prompts.append(prompt)
+        self.schemas.append(schema)
+        if schema is ScreenerAnswer:
+            return schema.model_validate(
+                ScreenerAnswer(decision="borderline", reasons=["Mixed."]).model_dump()
+            )
+        if schema is SuggestionBatch:
+            return schema.model_validate(SuggestionBatch(suggestions=[]).model_dump())
         numbers = [int(n) for n in re.findall(r"\[R(\d+)\]", prompt)]
         answers = [
             JudgeAnswer(requirement=n, verdict="missing", quotes=[], explanation="Not shown.")

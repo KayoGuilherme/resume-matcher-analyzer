@@ -13,7 +13,7 @@ from app.analyses.repository import AnalysisRepository
 from app.analyses.schemas import AnalysisDetail
 from app.core.config import get_settings
 from app.core.db import get_sessionmaker
-from tests.analyses.results import a_result
+from tests.analyses.results import a_result, a_stored_report
 from tests.analyses.support import clean_session, job_row, resume_row
 
 pytestmark = pytest.mark.integration
@@ -100,7 +100,7 @@ async def test_a_ready_analysis_is_returned_instead_of_a_new_one(session: AsyncS
 
     async with _repository() as repository:
         await repository.create(first, "k")
-        await repository.save_result(first.id, a_result())
+        await repository.save_result(first.id, a_result(), a_stored_report())
         again, created = await repository.create(_new(resume_id, job_id), "k")
 
     assert not created and again.id == first.id and again.status == "ready"
@@ -112,7 +112,7 @@ async def test_save_result_stores_the_result_and_completed_at(session: AsyncSess
 
     async with _repository() as repository:
         await repository.create(analysis, "k")
-        assert await repository.save_result(analysis.id, a_result(llm_calls=3))
+        assert await repository.save_result(analysis.id, a_result(llm_calls=3), a_stored_report())
         stored = await repository.get(analysis.id)
 
     assert stored is not None and stored.status == "ready" and stored.error is None
@@ -122,7 +122,7 @@ async def test_save_result_stores_the_result_and_completed_at(session: AsyncSess
 
 async def test_save_result_for_a_deleted_analysis_writes_nothing(session: AsyncSession) -> None:
     async with _repository() as repository:
-        assert not await repository.save_result(uuid.uuid4(), a_result())
+        assert not await repository.save_result(uuid.uuid4(), a_result(), a_stored_report())
 
 
 async def test_set_failed_stores_code_and_message_and_no_result(session: AsyncSession) -> None:
@@ -146,7 +146,7 @@ async def test_mark_interrupted_only_touches_processing_analyses(session: AsyncS
     async with _repository() as repository:
         await repository.create(running, "a")
         await repository.create(done, "b")
-        await repository.save_result(done.id, a_result())
+        await repository.save_result(done.id, a_result(), a_stored_report())
         count = await repository.mark_interrupted("Interrupted.")
         interrupted = await repository.get(running.id)
         untouched = await repository.get(done.id)
@@ -166,7 +166,39 @@ async def test_the_result_round_trips_through_the_database_as_a_model(
 
     async with _repository() as repository:
         await repository.create(analysis, "k")
-        await repository.save_result(analysis.id, result)
+        await repository.save_result(analysis.id, result, a_stored_report())
         stored = await repository.get(analysis.id)
 
     assert stored is not None and stored.result == result
+
+
+async def test_a_saved_report_is_read_back_equal(session: AsyncSession) -> None:
+    resume_id, job_id = await _pair(session)
+    analysis = _new(resume_id, job_id)
+    report = a_stored_report()
+
+    async with _repository() as repository:
+        await repository.create(analysis, "k-report")
+        assert await repository.get_report(analysis.id) is None  # not ready yet
+        assert await repository.save_result(analysis.id, a_result(), report)
+        stored = await repository.get_report(analysis.id)
+        detail = await repository.get(analysis.id)
+
+    assert stored == report
+    assert detail is not None and detail.status == "ready" and detail.result == a_result()
+
+
+async def test_a_failed_analysis_has_no_report(session: AsyncSession) -> None:
+    resume_id, job_id = await _pair(session)
+    analysis = _new(resume_id, job_id)
+
+    async with _repository() as repository:
+        await repository.create(analysis, "k-failed")
+        await repository.save_result(analysis.id, a_result(), a_stored_report())
+        await repository.set_failed(analysis.id, "processing_failed", "Failed.")
+        assert await repository.get_report(analysis.id) is None
+
+
+async def test_the_report_of_an_unknown_analysis_is_none(session: AsyncSession) -> None:
+    async with _repository() as repository:
+        assert await repository.get_report(uuid.uuid4()) is None

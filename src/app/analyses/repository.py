@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.matching.models import AnalysisResult
+from app.ai.matching.report_models import StoredReport
 from app.analyses.models import Analysis
 from app.analyses.schemas import AnalysisDetail
 from app.core.processing import ProcessingError
@@ -83,8 +84,19 @@ class AnalysisRepository:
             # the winner failed between the two statements: try to take its place
         raise RuntimeError("Could not create the analysis")
 
-    async def save_result(self, analysis_id: uuid.UUID, result: AnalysisResult) -> bool:
-        """Store the result and set `ready`; False (nothing written) if it was deleted meanwhile."""
+    async def get_report(self, analysis_id: uuid.UUID) -> StoredReport | None:
+        """The stored part of the report; None when there is none (not ready, failed, or made
+        before reports existed) or the analysis does not exist."""
+        row = await self._session.get(Analysis, analysis_id)
+        if row is None or row.report is None:
+            return None
+        return StoredReport.model_validate(row.report)
+
+    async def save_result(
+        self, analysis_id: uuid.UUID, result: AnalysisResult, report: StoredReport
+    ) -> bool:
+        """Store the result and the report in one statement and set `ready`; False (nothing
+        written) if the analysis was deleted meanwhile."""
         statement = (
             update(Analysis)
             .where(Analysis.id == analysis_id)
@@ -93,6 +105,7 @@ class AnalysisRepository:
                 error_code=None,
                 error_message=None,
                 result=result.model_dump(mode="json"),
+                report=report.model_dump(mode="json"),
                 completed_at=datetime.now(UTC),
             )
             .returning(Analysis.id)
@@ -110,6 +123,7 @@ class AnalysisRepository:
                 error_code=code,
                 error_message=message,
                 result=None,
+                report=None,
                 completed_at=datetime.now(UTC),
             )
         )

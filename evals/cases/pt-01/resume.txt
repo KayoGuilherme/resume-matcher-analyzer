@@ -1,0 +1,25 @@
+Rafael Almeida Costa
+Desenvolvedor Backend Java
+
+Resumo
+Desenvolvedor backend com sete anos de experiência em sistemas Java de alto volume.
+
+Experiência
+Desenvolvedor Java Sênior, Marés Tecnologia (mar. 2019 - set. 2024)
+- Desenvolvi serviços em Java e Spring Boot para o sistema de pagamentos
+- Otimizei consultas no PostgreSQL e reduzi o tempo de resposta em 45%
+- Padronizei os ambientes de desenvolvimento com Docker e Docker Compose
+- Orientei três desenvolvedores juniores e conduzi revisões de código semanais
+Desenvolvedor Java, Vale Verde Sistemas (jan. 2017 - fev. 2019)
+- Mantive APIs em Java para o sistema de estoque
+- Escrevi testes automatizados que reduziram os erros em produção
+
+Formação
+Bacharelado em Ciência da Computação, Universidade Planalto (2012 - 2016)
+
+Habilidades
+Java, Spring Boot, PostgreSQL, Docker, Git, JUnit
+
+Idiomas
+Inglês: Avançado
+Português: Nativo

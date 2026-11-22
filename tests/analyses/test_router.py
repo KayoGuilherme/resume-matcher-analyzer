@@ -239,3 +239,130 @@ async def test_the_openapi_lists_the_analyses_routes() -> None:
 
     assert set(paths["/analyses"]) == {"post"}
     assert set(paths["/analyses/{analysis_id}"]) == {"get"}
+
+
+# --- GET /analyses/{id}/report ----------------------------------------------------------------
+
+
+async def _ready_id(api: "Api") -> str:
+    created = await api.post()
+    await api.client.get(f"/analyses/{created.json()['id']}")  # background work has run
+    return str(created.json()["id"])
+
+
+async def test_the_report_is_json_by_default_and_with_format_json(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+
+    async with api.client:
+        analysis_id = await _ready_id(api)
+        default = await api.client.get(f"/analyses/{analysis_id}/report")
+        explicit = await api.client.get(f"/analyses/{analysis_id}/report?format=json")
+
+    assert default.status_code == explicit.status_code == 200
+    assert default.headers["content-type"].startswith("application/json")
+    body = default.json()
+    assert body == explicit.json() and body["analysis_id"] == analysis_id
+    assert {"disclaimer", "score", "screener", "actions", "suggestions", "provenance"} <= set(body)
+    assert "real ATS" in body["disclaimer"]
+
+
+async def test_the_report_as_markdown(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+
+    async with api.client:
+        analysis_id = await _ready_id(api)
+        response = await api.client.get(f"/analyses/{analysis_id}/report?format=markdown")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert response.text.startswith("# Screening report")
+    assert "real ATS" in response.text
+
+
+async def test_markdown_and_json_agree(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+
+    async with api.client:
+        analysis_id = await _ready_id(api)
+        body = (await api.client.get(f"/analyses/{analysis_id}/report")).json()
+        text = (await api.client.get(f"/analyses/{analysis_id}/report?format=markdown")).text
+
+    assert f"**{body['score']['value']:g} / 100**" in text
+    assert f"`{body['score']['outcome']}`" in text
+    assert f"`{body['screener']['decision']}`" in text
+    assert f"{body['screener']['consistency']:g}" in text
+    import re
+
+    assert len(re.findall(r"^\d+\. ", text, re.MULTILINE)) == len(body["actions"])
+
+
+async def test_an_unknown_format_is_a_422_naming_the_parameter(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+
+    async with api.client:
+        analysis_id = await _ready_id(api)
+        response = await api.client.get(f"/analyses/{analysis_id}/report?format=pdf")
+
+    assert response.status_code == 422
+    assert "format" in response.json()["error"]["message"]
+
+
+async def test_an_unknown_analysis_has_no_report(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+
+    async with api.client:
+        response = await api.client.get(f"/analyses/{uuid.uuid4()}/report")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "analysis_not_found"
+
+
+async def test_a_running_analysis_has_no_report_yet(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+    async with api.client:
+        analysis, _ = await api.env.service.request(api.env.resume_id, api.env.job_id, api.llm)
+
+        response = await api.client.get(f"/analyses/{analysis.id}/report")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "report_not_ready"
+
+
+async def test_a_failed_analysis_has_no_report(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api(FakeLLMClient([LLMTimeoutError("slow")]))
+
+    async with api.client:
+        analysis_id = await _ready_id(api)
+        response = await api.client.get(f"/analyses/{analysis_id}/report")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "analysis_failed"
+
+
+async def test_an_analysis_without_a_report_is_a_404(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+
+    async with api.client:
+        analysis_id = await _ready_id(api)
+        api.env.analyses.reports.pop(uuid.UUID(analysis_id))
+        response = await api.client.get(f"/analyses/{analysis_id}/report")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "report_not_available"
+
+
+async def test_reading_the_report_needs_no_llm_provider(make_api) -> None:  # type: ignore[no-untyped-def]
+    api = await make_api()
+
+    async with api.client:
+        analysis_id = await _ready_id(api)
+
+        def unavailable() -> object:
+            raise AINotConfiguredError("no llm")
+
+        api.app.dependency_overrides[get_llm_client] = unavailable
+        calls = api.llm.calls
+        response = await api.client.get(f"/analyses/{analysis_id}/report")
+
+    assert response.status_code == 200
+    assert api.llm.calls == calls

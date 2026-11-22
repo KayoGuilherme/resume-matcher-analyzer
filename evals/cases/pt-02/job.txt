@@ -1,0 +1,13 @@
+Desenvolvedor(a) Python - Aurora Pagamentos
+Buscamos uma pessoa desenvolvedora para evoluir as APIs do nosso portal.
+
+Requisitos:
+- Sólidos conhecimentos em Python
+- Experiência com Django
+- Experiência com PostgreSQL
+- Experiência com Git
+- Experiência em desenvolvimento de APIs REST
+
+Diferenciais:
+- Experiência com Docker
+- Experiência com Redis

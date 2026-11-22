@@ -1,0 +1,29 @@
+{
+  "language": "pt",
+  "expected_outcome": "likely_reject",
+  "document": {
+    "page_count": 5
+  },
+  "requirements": [
+    {
+      "match": "flutter",
+      "verdict": "missing"
+    },
+    {
+      "match": "dart",
+      "verdict": "missing"
+    },
+    {
+      "match": "firebase",
+      "verdict": "in_profile_not_in_resume"
+    },
+    {
+      "match": "git",
+      "verdict": "met"
+    },
+    {
+      "match": "figma",
+      "verdict": "met"
+    }
+  ]
+}

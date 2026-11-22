@@ -1,0 +1,36 @@
+{
+  "target_role": "Node.js Developer",
+  "seniority": "mid",
+  "total_years_coding": 7,
+  "stacks": [
+    {
+      "name": "TypeScript",
+      "years": 5,
+      "level": "proficient"
+    },
+    {
+      "name": "Node.js",
+      "years": 5,
+      "level": "proficient"
+    },
+    {
+      "name": "PostgreSQL",
+      "years": 5,
+      "level": "working"
+    },
+    {
+      "name": "AWS",
+      "years": 3,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "C1"
+    }
+  ],
+  "notable_facts": [
+    "Maintained an onboarding service used by 40 thousand customers"
+  ]
+}

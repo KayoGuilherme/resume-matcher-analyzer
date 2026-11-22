@@ -1,0 +1,40 @@
+{
+  "target_role": "Backend Developer",
+  "seniority": "senior",
+  "total_years_coding": 8,
+  "stacks": [
+    {
+      "name": "Python",
+      "years": 6,
+      "level": "expert"
+    },
+    {
+      "name": "PostgreSQL",
+      "years": 6,
+      "level": "proficient"
+    },
+    {
+      "name": "Docker",
+      "years": 4,
+      "level": "proficient"
+    },
+    {
+      "name": "Kubernetes",
+      "years": 3,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "C1"
+    },
+    {
+      "name": "Portuguese",
+      "level": "native"
+    }
+  ],
+  "notable_facts": [
+    "Led the migration of a billing service to PostgreSQL"
+  ]
+}

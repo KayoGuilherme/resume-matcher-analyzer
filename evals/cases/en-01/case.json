@@ -1,0 +1,26 @@
+{
+  "language": "en",
+  "expected_outcome": "likely_pass",
+  "requirements": [
+    {
+      "match": "backend development",
+      "verdict": "met"
+    },
+    {
+      "match": "python",
+      "verdict": "met"
+    },
+    {
+      "match": "postgresql",
+      "verdict": "met"
+    },
+    {
+      "match": "kubernetes",
+      "verdict": "met"
+    },
+    {
+      "match": "terraform",
+      "verdict": "missing"
+    }
+  ]
+}

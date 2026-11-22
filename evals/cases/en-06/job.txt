@@ -1,0 +1,12 @@
+Senior Machine Learning Engineer - Vector Dynamics
+Vector Dynamics ships machine learning models to production for logistics customers.
+
+Requirements:
+- 5+ years of machine learning engineering
+- Strong Python skills
+- Experience with PyTorch
+- Experience with SQL
+- Experience with MLOps and model deployment
+
+Nice to have:
+- Experience with Apache Spark

@@ -1,0 +1,18 @@
+Larissa Menezes Prado
+Desenvolvedora PHP
+
+Experiência
+Desenvolvedora PHP, Grupo Cascata (mai. 2019 - out. 2024)
+- Desenvolvi módulos de vendas em PHP e Laravel
+- Escrevi consultas e relatórios no MySQL
+- Versionei o código com Git e abri pull requests para a revisão do time
+- Subi os ambientes de teste com Docker
+
+Formação
+Tecnologia em Sistemas para Internet, Faculdade Aliança (2015 - 2018)
+
+Habilidades
+PHP, Laravel, MySQL, Git, Docker
+
+Idiomas
+Inglês: Intermediário

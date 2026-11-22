@@ -1,0 +1,36 @@
+{
+  "target_role": "Desenvolvedora Python",
+  "seniority": "mid",
+  "total_years_coding": 6,
+  "stacks": [
+    {
+      "name": "Python",
+      "years": 5,
+      "level": "proficient"
+    },
+    {
+      "name": "Django",
+      "years": 5,
+      "level": "proficient"
+    },
+    {
+      "name": "PostgreSQL",
+      "years": 5,
+      "level": "working"
+    },
+    {
+      "name": "Redis",
+      "years": 2,
+      "level": "working"
+    }
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "level": "B1"
+    }
+  ],
+  "notable_facts": [
+    "Reduziu o tempo de uma tela de relatórios usando cache em Redis"
+  ]
+}

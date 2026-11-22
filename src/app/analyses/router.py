@@ -3,12 +3,14 @@
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMClient, get_llm_client
+from app.ai.matching.markdown import render_markdown
+from app.ai.matching.report_models import Report
 from app.analyses.repository import AnalysisRepository
 from app.analyses.schemas import AnalysisDetail, AnalysisRequest
 from app.analyses.service import AnalysisService
@@ -90,3 +92,19 @@ async def create_analysis(
 @router.get("/analyses/{analysis_id}", response_model=AnalysisDetail)
 async def get_analysis(analysis_id: uuid.UUID, service: ServiceDep) -> AnalysisDetail:
     return await service.get(analysis_id)
+
+
+@router.get("/analyses/{analysis_id}/report", response_model=Report)
+async def get_report(
+    analysis_id: uuid.UUID,
+    service: ServiceDep,
+    format: Literal["json", "markdown"] = "json",  # noqa: A002 - the public query parameter
+) -> Report | Response:
+    """The screening report of a `ready` analysis: the score and outcome, the simulated
+    screener, prioritized actions and rewrite suggestions, always with the disclaimer. JSON by
+    default, Markdown with `?format=markdown`. No provider is called: the score follows the
+    `SCORE_*` settings in force when it is read."""
+    report = await service.get_report(analysis_id)
+    if format == "markdown":
+        return Response(render_markdown(report), media_type="text/markdown; charset=utf-8")
+    return report
