@@ -4,6 +4,8 @@ Backend (Python 3.12, FastAPI, PostgreSQL + pgvector) that compares a resume aga
 position and reports what is missing to pass ATS/AI first-step screening.
 Stored resumes are parsed, extracted by an LLM into structured data and embedded for search.
 
+Purpose: a study project for learning AI local agents and Python.
+
 ## Run with Docker
 
 ```bash
